@@ -7,8 +7,11 @@ struct DailyRestingHeartRateData {
 }
 
 extension HealthStore {
-    func fetchDailyRestingHeartRate(startDate: Date, endDate: Date, completion: @escaping ([DailyRestingHeartRateData]) -> Void) {
-        guard let healthStore = self.healthStore else { return completion([]) }
+    func fetchDailyRestingHeartRate(startDate: Date, endDate: Date, completion: @escaping (Result<[DailyRestingHeartRateData], Error>) -> Void) {
+        guard let healthStore = self.healthStore else {
+            completion(.failure(HealthStoreError.notAvailable))
+            return
+        }
 
         let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
         let dateComponents = DateComponents(day: 1)  // Daily statistics
@@ -20,8 +23,8 @@ extension HealthStore {
                                                 intervalComponents: dateComponents)
 
         query.initialResultsHandler = { _, result, error in
-            guard let result = result, error == nil else {
-                completion([])
+            guard let result = result else {
+                completion(.failure(error ?? HealthStoreError.dataUnavailable("resting-heart-rate")))
                 return
             }
 
@@ -36,7 +39,7 @@ extension HealthStore {
                 }
             }
 
-            completion(restingRates)
+            completion(.success(restingRates))
         }
 
         healthStore.execute(query)

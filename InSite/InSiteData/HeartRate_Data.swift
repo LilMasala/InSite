@@ -17,7 +17,7 @@ struct DailyAverageHeartRateData {
 }
 
 extension HealthStore {
-    private func fetchHourlyHeartRate(start: Date, end: Date, healthStore: HKHealthStore, completion: @escaping ([HourlyHeartRateData]) -> Void) {
+    private func fetchHourlyHeartRate(start: Date, end: Date, healthStore: HKHealthStore, completion: @escaping (Result<[HourlyHeartRateData], Error>) -> Void) {
 
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
         var dateComponents = DateComponents()
@@ -30,8 +30,8 @@ extension HealthStore {
                                                 intervalComponents: dateComponents)
 
         query.initialResultsHandler = { _, result, error in
-            guard let result = result, error == nil else {
-                completion([])
+            guard let result = result else {
+                completion(.failure(error ?? HealthStoreError.dataUnavailable("heart-hourly")))
                 return
             }
 
@@ -45,7 +45,7 @@ extension HealthStore {
                 }
             }
 
-            completion(heartRateData)
+            completion(.success(heartRateData))
         }
 
         healthStore.execute(query)
@@ -56,39 +56,54 @@ extension HealthStore {
 extension HealthStore {
 
     // This method fetches hourly heart rate data.
-    public func fetchAndCombineHourlyHeartRateData(start: Date, end: Date, dispatchGroup: DispatchGroup, completion: @escaping ([Date: HourlyHeartRateData], [DailyAverageHeartRateData]) -> Void) {
-        guard let healthStore = self.healthStore else { return }
+    public func fetchAndCombineHourlyHeartRateData(start: Date, end: Date, dispatchGroup: DispatchGroup, completion: @escaping (Result<([Date: HourlyHeartRateData], [DailyAverageHeartRateData]), Error>) -> Void) {
+        guard let healthStore = self.healthStore else {
+            completion(.failure(HealthStoreError.notAvailable))
+            return
+        }
 
         var hourlyHeartRateData = [Date: HourlyHeartRateData]()
         var averageHeartRateData = [DailyAverageHeartRateData]()
 
         dispatchGroup.enter()
-        fetchHourlyHeartRate(start: start, end: end, healthStore: healthStore) { results in
-            for data in results {
-                hourlyHeartRateData[data.hour] = data
+        fetchHourlyHeartRate(start: start, end: end, healthStore: healthStore) { result in
+            switch result {
+            case .success(let results):
+                for data in results {
+                    hourlyHeartRateData[data.hour] = data
+                }
+            case .failure(let error):
+                print("Error fetching hourly heart rate: \(error)")
             }
             dispatchGroup.leave()
         }
 
         dispatchGroup.enter() // Enter before calling the method to ensure synchronization
-        fetchDailyAverageHeartRate(startDate: start, endDate: end) { dailyAverageHeartRateDict in
+        fetchDailyAverageHeartRate(startDate: start, endDate: end) { result in
+            switch result {
+            case .success(let dailyAverageHeartRateDict):
             // Convert each (Date, Double) pair into a DailyAverageHeartRateData object
             averageHeartRateData = dailyAverageHeartRateDict.map { date, averageRate in
                 DailyAverageHeartRateData(date: date, averageHeartRate: averageRate)
             }.sorted(by: { $0.date < $1.date }) // Optionally, sort the array by date
-
+            case .failure(let error):
+                print("Error fetching daily average heart rate: \(error)")
+            }
             // IMPORTANT: Leave the dispatch group after fetching and processing the daily average heart rate data
             dispatchGroup.leave()
         }
         
         // Once both queries are complete, process the combined data
         dispatchGroup.notify(queue: .main) {
-            completion(hourlyHeartRateData, averageHeartRateData)
+            completion(.success((hourlyHeartRateData, averageHeartRateData)))
         }
     }
 
-    func fetchDailyAverageHeartRate(startDate: Date, endDate: Date, completion: @escaping ([Date: Double]) -> Void) {
-        guard let healthStore = self.healthStore else { return completion([:]) }
+    func fetchDailyAverageHeartRate(startDate: Date, endDate: Date, completion: @escaping (Result<[Date: Double], Error>) -> Void) {
+        guard let healthStore = self.healthStore else {
+            completion(.failure(HealthStoreError.notAvailable))
+            return
+        }
 
         var allAverages = [Date: Double]()
         let calendar = Calendar.current
@@ -109,7 +124,7 @@ extension HealthStore {
         }
 
         dispatchGroup.notify(queue: .main) {
-            completion(allAverages)
+            completion(.success(allAverages))
         }
     }
 

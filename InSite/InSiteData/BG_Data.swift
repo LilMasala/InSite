@@ -28,39 +28,54 @@ struct HourlyAvgBgData {
 }
 
 extension HealthStore {
-    public func fetchAllBgData(start: Date, end: Date, dispatchGroup: DispatchGroup, completion: @escaping ([HourlyBgData], [HourlyAvgBgData], [HourlyBgPercentages]) -> Void) {
+    public func fetchAllBgData(start: Date, end: Date, dispatchGroup: DispatchGroup, completion: @escaping (Result<([HourlyBgData], [HourlyAvgBgData], [HourlyBgPercentages]), Error>) -> Void) {
         guard let healthStore = self.healthStore else {
-                    completion([], [], [])
-                    return
-                }
+            completion(.failure(HealthStoreError.notAvailable))
+            return
+        }
         var hourlyBgData: [HourlyBgData] = []
         var avgBgData: [HourlyAvgBgData] = []
         var hourlyPercentages: [HourlyBgPercentages] = []
 
         dispatchGroup.enter()
         fetchBgAtStartandEnd(start: start, end: end, healthStore: healthStore, bloodGlucoseType: bloodGlucoseType) { result in
-            hourlyBgData = result
+            switch result {
+            case .success(let data):
+                hourlyBgData = data
+            case .failure(let error):
+                print("Error fetching BG start/end: \(error)")
+            }
             dispatchGroup.leave()
         }
 
         dispatchGroup.enter()
         fetchAvgBg(start: start, end: end, healthStore: healthStore, bloodGlucoseType: bloodGlucoseType) { result in
-            avgBgData = result
+            switch result {
+            case .success(let data):
+                avgBgData = data
+            case .failure(let error):
+                print("Error fetching BG average: \(error)")
+            }
             dispatchGroup.leave()
         }
 
         dispatchGroup.enter()
         calculatePercentLowAndHigh(start: start, end: end, healthStore: healthStore, dispatchGroup: dispatchGroup, bloodGlucoseType: bloodGlucoseType) { result in
-            hourlyPercentages = result
+            switch result {
+            case .success(let data):
+                hourlyPercentages = data
+            case .failure(let error):
+                print("Error calculating BG percentages: \(error)")
+            }
             dispatchGroup.leave()
         }
 
         dispatchGroup.notify(queue: .main) {
-            completion(hourlyBgData, avgBgData, hourlyPercentages)
+            completion(.success((hourlyBgData, avgBgData, hourlyPercentages)))
         }
     }
 
-    private func fetchBgAtStartandEnd(start: Date, end: Date, healthStore: HKHealthStore, bloodGlucoseType: HKQuantityType, completion: @escaping ([HourlyBgData]) -> Void) {
+    private func fetchBgAtStartandEnd(start: Date, end: Date, healthStore: HKHealthStore, bloodGlucoseType: HKQuantityType, completion: @escaping (Result<[HourlyBgData], Error>) -> Void) {
         let calendar = Calendar.current
 
         // Create an hourly interval
@@ -72,8 +87,8 @@ extension HealthStore {
         let query = HKStatisticsCollectionQuery(quantityType: bloodGlucoseType, quantitySamplePredicate: predicate, options: [.discreteAverage], anchorDate: start, intervalComponents: dateComponents)
 
         query.initialResultsHandler = { _, result, error in
-            guard let result = result, error == nil else {
-                completion([])
+            guard let result = result else {
+                completion(.failure(error ?? HealthStoreError.dataUnavailable("bg-start-end")))
                 return
             }
 
@@ -89,13 +104,13 @@ extension HealthStore {
                 bgData.append(hourlyData)
             }
 
-            completion(bgData)
+            completion(.success(bgData))
         }
 
         healthStore.execute(query)
     }
 
-    private func fetchAllBgPerHour(start: Date, end: Date, healthStore: HKHealthStore, bloodGlucoseType: HKQuantityType, dispatchGroup: DispatchGroup, completion: @escaping ([HourlyBgValues]) -> Void) {
+    private func fetchAllBgPerHour(start: Date, end: Date, healthStore: HKHealthStore, bloodGlucoseType: HKQuantityType, dispatchGroup: DispatchGroup, completion: @escaping (Result<[HourlyBgValues], Error>) -> Void) {
         let calendar = Calendar.current
         var date = start
         var hourlyBgValues: [HourlyBgValues] = []
@@ -108,12 +123,13 @@ extension HealthStore {
             dispatchGroup.enter()
             let query = HKSampleQuery(sampleType: bloodGlucoseType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
                 defer { dispatchGroup.leave() }
-
                 guard error == nil else {
+                    completion(.failure(error!))
                     return
                 }
 
                 guard let samples = samples as? [HKQuantitySample] else {
+                    completion(.failure(HealthStoreError.dataUnavailable("bg-hour-values")))
                     return
                 }
 
@@ -132,11 +148,11 @@ extension HealthStore {
         }
 
         dispatchGroup.notify(queue: .main) {
-            completion(hourlyBgValues)
+            completion(.success(hourlyBgValues))
         }
     }
 
-    private func fetchAvgBg(start: Date, end: Date, healthStore: HKHealthStore, bloodGlucoseType: HKQuantityType, completion: @escaping ([HourlyAvgBgData]) -> Void) {
+    private func fetchAvgBg(start: Date, end: Date, healthStore: HKHealthStore, bloodGlucoseType: HKQuantityType, completion: @escaping (Result<[HourlyAvgBgData], Error>) -> Void) {
         let calendar = Calendar.current
 
         // Create an hourly interval
@@ -148,8 +164,8 @@ extension HealthStore {
         let query = HKStatisticsCollectionQuery(quantityType: bloodGlucoseType, quantitySamplePredicate: predicate, options: [.discreteAverage], anchorDate: start, intervalComponents: dateComponents)
 
         query.initialResultsHandler = { _, result, error in
-            guard let result = result, error == nil else {
-                completion([])
+            guard let result = result else {
+                completion(.failure(error ?? HealthStoreError.dataUnavailable("bg-avg")))
                 return
             }
 
@@ -164,17 +180,22 @@ extension HealthStore {
                 avgBgData.append(hourlyData)
             }
 
-            completion(avgBgData)
+            completion(.success(avgBgData))
         }
 
         healthStore.execute(query)
     }
 
-    private func calculatePercentLowAndHigh(start: Date, end: Date, healthStore: HKHealthStore, dispatchGroup: DispatchGroup, bloodGlucoseType: HKQuantityType, completion: @escaping ([HourlyBgPercentages]) -> Void) {
+    private func calculatePercentLowAndHigh(start: Date, end: Date, healthStore: HKHealthStore, dispatchGroup: DispatchGroup, bloodGlucoseType: HKQuantityType, completion: @escaping (Result<[HourlyBgPercentages], Error>) -> Void) {
         let lowBg = 80.0
         let highBg = 180.0
 
-        fetchAllBgPerHour(start: start, end: end, healthStore: healthStore, bloodGlucoseType: bloodGlucoseType, dispatchGroup: dispatchGroup) { hourlyBgValues in
+        fetchAllBgPerHour(start: start, end: end, healthStore: healthStore, bloodGlucoseType: bloodGlucoseType, dispatchGroup: dispatchGroup) { result in
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+                return
+            case .success(let hourlyBgValues):
             var hourlyPercentages: [HourlyBgPercentages] = []
 
             for hourlyBg in hourlyBgValues {
@@ -195,7 +216,8 @@ extension HealthStore {
                 hourlyPercentages.append(hourlyData)
             }
 
-            completion(hourlyPercentages)
+            completion(.success(hourlyPercentages))
+            }
         }
     }
 }

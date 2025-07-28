@@ -53,7 +53,12 @@ final class UserManager{
     } ()
     
     func createNewUser(user: DBUser) async throws {
-        try userDocument(userId: user.userId).setData(from: user,merge: false, encoder: encoder)
+        let docRef = userDocument(userId: user.userId)
+        let snapshot = try await docRef.getDocument()
+        if snapshot.exists {
+            print("User document already exists, merging")
+        }
+        try docRef.setData(from: user, merge: true, encoder: encoder)
     }
     
     func getUser(userId: String) async throws -> DBUser {
