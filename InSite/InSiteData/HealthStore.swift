@@ -10,6 +10,11 @@ import HealthKit
 import SwiftUI
 import HealthKitUI
 
+enum HealthStoreError: Error {
+    case notAvailable
+    case dataUnavailable(String)
+}
+
 
 extension HKWorkoutActivityType {
     var name: String {

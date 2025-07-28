@@ -31,19 +31,21 @@ struct LastExerciseData {
 
 extension HealthStore {
 
-    func fetchAndCombineExerciseData(start: Date, end: Date, dispatchGroup: DispatchGroup, completion: @escaping ([Date: HourlyExerciseData], [Date: DailyAverageExerciseData]) -> Void) {
+    func fetchAndCombineExerciseData(start: Date, end: Date, dispatchGroup: DispatchGroup, completion: @escaping (Result<([Date: HourlyExerciseData], [Date: DailyAverageExerciseData]), Error>) -> Void) {
         var hourlyExerciseData = [Date: HourlyExerciseData]()
         var dailyAverageExerciseData = [Date: DailyAverageExerciseData]()
         let queue = DispatchQueue(label: "com.yourapp.hourlyExerciseDataQueue")
         
         // Hourly data for Move Time
         dispatchGroup.enter()
-        fetchHourlyExerciseData(for: appleMoveTimeType, dataType: .move, start: start, end: end) { results in
-            for (hour, newData) in results {
-                guard let hourDate = hour as? Date else {
-                    print("Invalid date in results: \(hour)")
-                    continue
-                }
+        fetchHourlyExerciseData(for: appleMoveTimeType, dataType: .move, start: start, end: end) { result in
+            switch result {
+            case .success(let results):
+                for (hour, newData) in results {
+                    guard let hourDate = hour as? Date else {
+                        print("Invalid date in results: \(hour)")
+                        continue
+                    }
                 
                 queue.sync {
                     print("hourDate: \(hourDate)")
@@ -61,18 +63,23 @@ extension HealthStore {
                         hourlyExerciseData[hourDate] = newEntry
                     }
                 }
+                }
+            case .failure(let error):
+                print("Error fetching move data: \(error)")
             }
             dispatchGroup.leave()
         }
         
         // Hourly data for Exercise Time
         dispatchGroup.enter()
-        fetchHourlyExerciseData(for: appleExerciseTimeType, dataType: .exercise, start: start, end: end) { results in
-            for (hour, newData) in results {
-                guard let hourDate = hour as? Date else {
-                    print("Invalid date in results: \(hour)")
-                    continue
-                }
+        fetchHourlyExerciseData(for: appleExerciseTimeType, dataType: .exercise, start: start, end: end) { result in
+            switch result {
+            case .success(let results):
+                for (hour, newData) in results {
+                    guard let hourDate = hour as? Date else {
+                        print("Invalid date in results: \(hour)")
+                        continue
+                    }
                 
                 queue.sync {
                     print("hourDate: \(hourDate)")
@@ -90,6 +97,8 @@ extension HealthStore {
                         hourlyExerciseData[hourDate] = newEntry
                     }
                 }
+            case .failure(let error):
+                print("Error fetching exercise minutes: \(error)")
             }
             dispatchGroup.leave()
         }
@@ -105,11 +114,11 @@ extension HealthStore {
                     averageExerciseMinutes: existingData.averageExerciseMinutes + data.exerciseMinutes / 24
                 )
             }
-            completion(hourlyExerciseData, dailyAverageExerciseData)
+            completion(.success((hourlyExerciseData, dailyAverageExerciseData)))
         }
     }
 
-    private func fetchHourlyExerciseData(for quantityType: HKQuantityType, dataType: DataType, start: Date, end: Date, completion: @escaping ([Date: HourlyExerciseData]) -> Void) {
+    private func fetchHourlyExerciseData(for quantityType: HKQuantityType, dataType: DataType, start: Date, end: Date, completion: @escaping (Result<[Date: HourlyExerciseData], Error>) -> Void) {
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
         var interval = DateComponents()
         interval.hour = 1
@@ -117,8 +126,7 @@ extension HealthStore {
         let query = HKStatisticsCollectionQuery(quantityType: quantityType, quantitySamplePredicate: predicate, options: [.cumulativeSum], anchorDate: start, intervalComponents: interval)
         query.initialResultsHandler = { _, results, error in
             guard let results = results else {
-                print("Error fetching exercise data: \(String(describing: error))")
-                completion([:])
+                completion(.failure(error ?? HealthStoreError.dataUnavailable("exercise")))
                 return
             }
 
@@ -137,12 +145,12 @@ extension HealthStore {
                 
                 data[hour] = existingData
             }
-            completion(data)
+            completion(.success(data))
         }
         HKHealthStore().execute(query)
     }
 
-    func fetchDailyAverageExerciseData(start: Date, end: Date, healthStore: HKHealthStore, completion: @escaping ([Date: DailyAverageExerciseData]) -> Void) {
+    func fetchDailyAverageExerciseData(start: Date, end: Date, healthStore: HKHealthStore, completion: @escaping (Result<[Date: DailyAverageExerciseData], Error>) -> Void) {
         var dailyAverageExerciseData = [Date: DailyAverageExerciseData]()
         
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
@@ -152,8 +160,7 @@ extension HealthStore {
         let query = HKStatisticsCollectionQuery(quantityType: appleMoveTimeType, quantitySamplePredicate: predicate, options: [.cumulativeSum], anchorDate: start, intervalComponents: interval)
         query.initialResultsHandler = { _, results, error in
             guard let results = results else {
-                print("Error fetching move data: \(String(describing: error))")
-                completion([:])
+                completion(.failure(error ?? HealthStoreError.dataUnavailable("exercise-move")))
                 return
             }
             
@@ -167,8 +174,7 @@ extension HealthStore {
             let exerciseQuery = HKStatisticsCollectionQuery(quantityType: self.appleExerciseTimeType, quantitySamplePredicate: predicate, options: [.cumulativeSum], anchorDate: start, intervalComponents: interval)
             exerciseQuery.initialResultsHandler = { _, exerciseResults, error in
                 guard let exerciseResults = exerciseResults else {
-                    print("Error fetching exercise data: \(String(describing: error))")
-                    completion([:])
+                    completion(.failure(error ?? HealthStoreError.dataUnavailable("exercise")))
                     return
                 }
                 
@@ -186,7 +192,7 @@ extension HealthStore {
                     dailyAverageExerciseData[date] = DailyAverageExerciseData(date: date, averageMoveMinutes: moveMinutes, averageExerciseMinutes: exerciseMinutes)
                 }
                 
-                completion(dailyAverageExerciseData)
+                completion(.success(dailyAverageExerciseData))
             }
             
             healthStore.execute(exerciseQuery)
