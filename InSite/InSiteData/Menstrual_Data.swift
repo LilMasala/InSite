@@ -14,15 +14,18 @@ struct DailyMenstrualData {
     let daysSincePeriodStart: Int
 }
 extension HealthStore {
-    func fetchMenstrualData(startDate: Date, endDate: Date, completion: @escaping ([Date: DailyMenstrualData]) -> Void) {
-        guard let healthStore = self.healthStore else { return completion([:]) }
+    func fetchMenstrualData(startDate: Date, endDate: Date, completion: @escaping (Result<[Date: DailyMenstrualData], Error>) -> Void) {
+        guard let healthStore = self.healthStore else {
+            completion(.failure(HealthStoreError.notAvailable))
+            return
+        }
 
         let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
 
         let query = HKSampleQuery(sampleType: menstrualType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sortDescriptor]) { (query, samples, error) in
             guard let samples = samples as? [HKCategorySample], error == nil else {
-                completion([:])
+                completion(.failure(error ?? HealthStoreError.dataUnavailable("menstrual")))
                 return
             }
 
@@ -55,7 +58,7 @@ extension HealthStore {
                 currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate)!
             }
 
-            completion(menstrualData)
+            completion(.success(menstrualData))
         }
 
         healthStore.execute(query)

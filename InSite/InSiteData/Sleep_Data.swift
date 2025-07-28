@@ -34,15 +34,18 @@ struct DailySleepDurations {
     }
 }
 extension HealthStore {
-    func fetchSleepDurations(startDate: Date, endDate: Date, completion: @escaping ([Date: DailySleepDurations]) -> Void) {
-        guard let healthStore = self.healthStore else { return completion([:]) }
+    func fetchSleepDurations(startDate: Date, endDate: Date, completion: @escaping (Result<[Date: DailySleepDurations], Error>) -> Void) {
+        guard let healthStore = self.healthStore else {
+            completion(.failure(HealthStoreError.notAvailable))
+            return
+        }
 
         let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
 
         let query = HKSampleQuery(sampleType: sleepType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sortDescriptor]) { (query, samples, error) in
             guard let samples = samples as? [HKCategorySample], error == nil else {
-                completion([:])
+                completion(.failure(error ?? HealthStoreError.dataUnavailable("sleep")))
                 return
             }
 
@@ -76,7 +79,7 @@ extension HealthStore {
                 day = calendar.date(byAdding: .day, value: 1, to: day)!
             }
 
-            completion(sleepDurations)
+            completion(.success(sleepDurations))
         }
 
         healthStore.execute(query)

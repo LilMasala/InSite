@@ -32,8 +32,11 @@ extension HealthStore {
 
     // This method now fetches both basal and active energy data,
     // then combines them into total energy burned per hour.
-    public func fetchAndCombineHourlyEnergyData(start: Date, end: Date, dispatchGroup: DispatchGroup,completion: @escaping ([Date: HourlyEnergyData], [DailyAverageEnergyData]) -> Void) {
-        guard let healthStore = self.healthStore else { return }
+    public func fetchAndCombineHourlyEnergyData(start: Date, end: Date, dispatchGroup: DispatchGroup,completion: @escaping (Result<([Date: HourlyEnergyData], [DailyAverageEnergyData]), Error>) -> Void) {
+        guard let healthStore = self.healthStore else {
+            completion(.failure(HealthStoreError.notAvailable))
+            return
+        }
 
         // Using a dictionary to map each hour to its energy data
         var combinedEnergyData = [Date: HourlyEnergyData]()
@@ -41,49 +44,65 @@ extension HealthStore {
 
         // Basal Energy
         dispatchGroup.enter()
-        fetchHourlyEnergyData(for: basalEnergyType, start: start, end: end, healthStore: healthStore) { results in
-            for data in results {
-                if combinedEnergyData[data.hour] == nil {
-                    combinedEnergyData[data.hour] = data
-                } else {
-                    combinedEnergyData[data.hour]?.basalEnergy = data.basalEnergy
+        fetchHourlyEnergyData(for: basalEnergyType, start: start, end: end, healthStore: healthStore) { result in
+            switch result {
+            case .success(let results):
+                for data in results {
+                    if combinedEnergyData[data.hour] == nil {
+                        combinedEnergyData[data.hour] = data
+                    } else {
+                        combinedEnergyData[data.hour]?.basalEnergy = data.basalEnergy
+                    }
                 }
+            case .failure(let error):
+                print("Error fetching basal energy: \(error)")
             }
             dispatchGroup.leave()
         }
 
         // Active Energy
         dispatchGroup.enter()
-        fetchHourlyEnergyData(for: activeEnergyType, start: start, end: end, healthStore: healthStore) { results in
-            for data in results {
-                if combinedEnergyData[data.hour] == nil {
-                    combinedEnergyData[data.hour] = data
-                } else {
-                    combinedEnergyData[data.hour]?.activeEnergy = data.activeEnergy
+        fetchHourlyEnergyData(for: activeEnergyType, start: start, end: end, healthStore: healthStore) { result in
+            switch result {
+            case .success(let results):
+                for data in results {
+                    if combinedEnergyData[data.hour] == nil {
+                        combinedEnergyData[data.hour] = data
+                    } else {
+                        combinedEnergyData[data.hour]?.activeEnergy = data.activeEnergy
+                    }
                 }
+            case .failure(let error):
+                print("Error fetching active energy: \(error)")
             }
             dispatchGroup.leave()
         }
 
         dispatchGroup.enter() // Enter before calling the method to ensure synchronization
-        fetchDailyAverageActiveEnergy(startDate: start, endDate: end) { dailyAverageEnergyDict in
+        fetchDailyAverageActiveEnergy(startDate: start, endDate: end) { result in
+            switch result {
+            case .success(let dailyAverageEnergyDict):
             // Convert each (Date, Double) pair into a DailyAverageEnergyData object
             averageEnergyData = dailyAverageEnergyDict.map { date, averageEnergy in
                 DailyAverageEnergyData(date: date, averageActiveEnergy: averageEnergy)
             }.sorted(by: { $0.date < $1.date }) // Optionally, sort the array by date
-
+            case .failure(let error):
+                print("Error fetching average active energy: \(error)")
+            }
             // IMPORTANT: Leave the dispatch group after fetching and processing the daily average energy data
             dispatchGroup.leave()
         }
         // Once both queries are complete, process the combined data
         dispatchGroup.notify(queue: .main) {
-            // Now, combinedEnergyData contains hourly data with both basal and active energy combined.
-            // You can process or display this combined data as needed.
             self.processCombinedEnergyData(combinedEnergyData)
+            completion(.success((combinedEnergyData, averageEnergyData)))
         }
     }
-    func fetchDailyAverageActiveEnergy(startDate: Date, endDate: Date, completion: @escaping ([Date: Double]) -> Void) {
-            guard let healthStore = self.healthStore else { return }
+    func fetchDailyAverageActiveEnergy(startDate: Date, endDate: Date, completion: @escaping (Result<[Date: Double], Error>) -> Void) {
+            guard let healthStore = self.healthStore else {
+                completion(.failure(HealthStoreError.notAvailable))
+                return
+            }
             var allAverages: [Date: Double] = [:]  // Use a dictionary to map each date to its average
             let calendar = Calendar.current
             let daysBetween = calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 0
@@ -96,7 +115,7 @@ extension HealthStore {
                 let periodStart = calendar.date(byAdding: .day, value: -7, to: currentDate)!
 
                 fetchGroup.enter()  // Mark the beginning of an asynchronous task
-                fetchWeeklyAverageActiveCalories(start: periodStart, end: currentDate, healthStore: healthStore, quantityType: activeEnergyType) { average in
+            fetchWeeklyAverageActiveCalories(start: periodStart, end: currentDate, healthStore: healthStore, quantityType: activeEnergyType) { average in
                     if let average = average {
                         allAverages[currentDate] = average
                     }
@@ -106,7 +125,7 @@ extension HealthStore {
 
             // Once all the asynchronous tasks are completed, execute the completion block
             fetchGroup.notify(queue: .main) {
-                completion(allAverages)
+                completion(.success(allAverages))
             }
         }
 
@@ -160,7 +179,7 @@ extension HealthStore {
         }
     }
 
-    private func fetchHourlyEnergyData(for quantityType: HKQuantityType, start: Date, end: Date, healthStore: HKHealthStore, completion: @escaping ([HourlyEnergyData]) -> Void) {
+    private func fetchHourlyEnergyData(for quantityType: HKQuantityType, start: Date, end: Date, healthStore: HKHealthStore, completion: @escaping (Result<[HourlyEnergyData], Error>) -> Void) {
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
         var dateComponents = DateComponents()
         dateComponents.hour = 1  // Hourly intervals.
@@ -171,8 +190,11 @@ extension HealthStore {
                                                 anchorDate: start,
                                                 intervalComponents: dateComponents)
 
-        query.initialResultsHandler = { _, result, _ in
-            guard let result = result else { return }
+        query.initialResultsHandler = { _, result, error in
+            guard let result = result else {
+                completion(.failure(error ?? HealthStoreError.dataUnavailable("energy")))
+                return
+            }
 
             var energyData: [HourlyEnergyData] = []
 
@@ -188,7 +210,7 @@ extension HealthStore {
                 }
             }
 
-            completion(energyData)
+            completion(.success(energyData))
         }
 
         healthStore.execute(query)
