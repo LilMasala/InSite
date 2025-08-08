@@ -4,7 +4,8 @@ import UIKit
 //Hold down on long press
 
 
-struct DiabeticProfile: Codable {
+struct DiabeticProfile: Codable, Identifiable {
+    var id: String = UUID().uuidString
     var name: String
     var hourRanges: [HourRange] // Assuming HourRange is defined to group hours
 }
@@ -78,7 +79,13 @@ struct TherapySettings: View {
                                             }
                                             .contentShape(Rectangle())
                                             .onTapGesture {
-                                                self.selectedProfileIndex = index
+                                                if self.selectedProfileIndex != index {
+                                                    self.selectedProfileIndex = index
+                                                    let profile = self.profiles[index]
+                                                    Task {
+                                                        try? await TherapySettingsLogManager.shared.logTherapySettingsChange(profile: profile, timestamp: Date())
+                                                    }
+                                                }
                                             }
                                         }
                                         .onDelete(perform: deleteProfile)

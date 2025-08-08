@@ -28,10 +28,10 @@ class HealthDataUploader {
         }
     }
 
-    func uploadHourlyBgData(_ data: [HourlyBgData]) {
+    func uploadHourlyBgData(_ data: [(HourlyBgData, String?)]) {
         guard let collection = userCollection("blood_glucose") else { return }
         let batch = Firestore.firestore().batch()
-        for entry in data {
+        for (entry, profileId) in data {
             var dict: [String: Any] = [
                 "startDate": isoString(from: entry.startDate),
                 "endDate": isoString(from: entry.endDate),
@@ -39,51 +39,56 @@ class HealthDataUploader {
             ]
             if let start = entry.startBg { dict["startBg"] = start }
             if let end = entry.endBg { dict["endBg"] = end }
+            if let profileId = profileId { dict["therapyProfileId"] = profileId }
             batch.setData(dict, forDocument: collection.document("hourly-\(isoString(from: entry.startDate))"))
         }
         commit(batch, label: "hourly BG")
     }
 
-    func uploadAverageBgData(_ data: [HourlyAvgBgData]) {
+    func uploadAverageBgData(_ data: [(HourlyAvgBgData, String?)]) {
         guard let collection = userCollection("blood_glucose") else { return }
         let batch = Firestore.firestore().batch()
-        for entry in data {
+        for (entry, profileId) in data {
             var dict: [String: Any] = [
                 "startDate": isoString(from: entry.startDate),
                 "endDate": isoString(from: entry.endDate),
                 "type": "average"
             ]
             if let avg = entry.averageBg { dict["averageBg"] = avg }
+            if let profileId = profileId { dict["therapyProfileId"] = profileId }
             batch.setData(dict, forDocument: collection.document("average-\(isoString(from: entry.startDate))"))
         }
         commit(batch, label: "avg BG")
     }
 
-    func uploadHourlyBgPercentages(_ data: [HourlyBgPercentages]) {
+    func uploadHourlyBgPercentages(_ data: [(HourlyBgPercentages, String?)]) {
         guard let collection = userCollection("blood_glucose") else { return }
         let batch = Firestore.firestore().batch()
-        for entry in data {
-            let dict: [String: Any] = [
+        for (entry, profileId) in data {
+            var dict: [String: Any] = [
                 "startDate": isoString(from: entry.startDate),
                 "endDate": isoString(from: entry.endDate),
                 "percentLow": entry.percentLow,
                 "percentHigh": entry.percentHigh,
                 "type": "percent"
             ]
+            if let profileId = profileId { dict["therapyProfileId"] = profileId }
             batch.setData(dict, forDocument: collection.document("percent-\(isoString(from: entry.startDate))"))
         }
         commit(batch, label: "bg percent")
     }
 
-    func uploadHourlyHeartRateData(_ data: [Date: HourlyHeartRateData]) {
+    func uploadHourlyHeartRateData(_ data: [Date: (HourlyHeartRateData, String?)]) {
         guard let collection = userCollection("heart_rate") else { return }
         let batch = Firestore.firestore().batch()
-        for (date, entry) in data {
-            let dict: [String: Any] = [
+        for (date, tuple) in data {
+            let (entry, profileId) = tuple
+            var dict: [String: Any] = [
                 "hour": isoString(from: entry.hour),
                 "heartRate": entry.heartRate,
                 "type": "hourly"
             ]
+            if let profileId = profileId { dict["therapyProfileId"] = profileId }
             batch.setData(dict, forDocument: collection.document("hourly-\(isoString(from: date))"))
         }
         commit(batch, label: "hourly HR")
@@ -103,17 +108,19 @@ class HealthDataUploader {
         commit(batch, label: "avg HR")
     }
 
-    func uploadHourlyExerciseData(_ data: [Date: HourlyExerciseData]) {
+    func uploadHourlyExerciseData(_ data: [Date: (HourlyExerciseData, String?)]) {
         guard let collection = userCollection("exercise") else { return }
         let batch = Firestore.firestore().batch()
-        for (date, entry) in data {
-            let dict: [String: Any] = [
+        for (date, tuple) in data {
+            let (entry, profileId) = tuple
+            var dict: [String: Any] = [
                 "hour": isoString(from: entry.hour),
                 "moveMinutes": entry.moveMinutes,
                 "exerciseMinutes": entry.exerciseMinutes,
                 "totalMinutes": entry.totalMinutes,
                 "type": "hourly"
             ]
+            if let profileId = profileId { dict["therapyProfileId"] = profileId }
             batch.setData(dict, forDocument: collection.document("hourly-\(isoString(from: date))"))
         }
         commit(batch, label: "hourly exercise")
@@ -148,14 +155,15 @@ class HealthDataUploader {
         commit(batch, label: "menstrual")
     }
 
-    func uploadBodyMassData(_ data: [HourlyBodyMassData]) {
+    func uploadBodyMassData(_ data: [(HourlyBodyMassData, String?)]) {
         guard let collection = userCollection("body_mass") else { return }
         let batch = Firestore.firestore().batch()
-        for entry in data {
-            let dict: [String: Any] = [
+        for (entry, profileId) in data {
+            var dict: [String: Any] = [
                 "hour": isoString(from: entry.hour),
                 "weight": entry.weight
             ]
+            if let profileId = profileId { dict["therapyProfileId"] = profileId }
             batch.setData(dict, forDocument: collection.document(isoString(from: entry.hour)))
         }
         commit(batch, label: "body mass")
@@ -191,17 +199,19 @@ class HealthDataUploader {
         commit(batch, label: "sleep")
     }
 
-    func uploadHourlyEnergyData(_ data: [Date: HourlyEnergyData]) {
+    func uploadHourlyEnergyData(_ data: [Date: (HourlyEnergyData, String?)]) {
         guard let collection = userCollection("energy") else { return }
         let batch = Firestore.firestore().batch()
-        for (date, entry) in data {
-            let dict: [String: Any] = [
+        for (date, tuple) in data {
+            let (entry, profileId) = tuple
+            var dict: [String: Any] = [
                 "hour": isoString(from: entry.hour),
                 "basalEnergy": entry.basalEnergy,
                 "activeEnergy": entry.activeEnergy,
                 "totalEnergy": entry.totalEnergy,
                 "type": "hourly"
             ]
+            if let profileId = profileId { dict["therapyProfileId"] = profileId }
             batch.setData(dict, forDocument: collection.document("hourly-\(isoString(from: date))"))
         }
         commit(batch, label: "energy")
