@@ -47,39 +47,38 @@ struct AuthView: View {
     
     
     var body: some View {
-        VStack {
-            Button(action: {
-                Task {
-                    do {
-                        try await viewModel.signInAnonymous()
-                        showSignInView = false
-                    } catch {
-                        print(error)
+        GeometryReader { geometry in
+            VStack {
+                Button(action: {
+                    Task {
+                        do {
+                            try await viewModel.signInAnonymous()
+                            showSignInView = false
+                        } catch {
+                            print(error)
+                        }
                     }
+                }) {
+                    Text("Sign in Anonymously")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(height: geometry.size.height * 0.07)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.orange)
+                        .cornerRadius(geometry.size.height * 0.02)
                 }
-            }) {
-                Text("Sign in Anonymously")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(height:55)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.orange)
-                    .cornerRadius(10)
-            }
 
-            
-            
-            NavigationLink {
-                SignInEmailView(showSignInView: $showSignInView)
-            } label: {
-                Text("Sign in with email")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(height:55)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.blue)
-                    .cornerRadius(10)
-            }
+                NavigationLink {
+                    SignInEmailView(showSignInView: $showSignInView)
+                } label: {
+                    Text("Sign in with email")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(height: geometry.size.height * 0.07)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.blue)
+                        .cornerRadius(geometry.size.height * 0.02)
+                }
             
             GoogleSignInButton(viewModel: GoogleSignInButtonViewModel(scheme: .dark,style: .wide,state: .normal))  {
                 Task {
@@ -92,31 +91,32 @@ struct AuthView: View {
                 }
                 
             }
-            Button(action: {
-                Task {
-                    do {
-                        try await viewModel.signInApple()
+                Button(action: {
+                    Task {
+                        do {
+                            try await viewModel.signInApple()
 //                        showSignInView = false
-                    } catch {
-                        print(error)
+                        } catch {
+                            print(error)
+                        }
+                    }
+
+
+                }, label: {
+                    SignInWithAppleButtonViewRepresentable(type: .default, style: .black)
+
+                })
+                .frame(height: geometry.size.height * 0.07)
+                .onChange(of: viewModel.didSignInWithApple) { newValue in
+                    if newValue {
+                        showSignInView = false
                     }
                 }
-                
-                
-            }, label: {
-                SignInWithAppleButtonViewRepresentable(type: .default, style: .black)
-                
-            })
-            .frame(height:55)
-            .onChange(of: viewModel.didSignInWithApple) { newValue in
-                if newValue {
-                    showSignInView = false
-                }
+                Spacer()
             }
-            Spacer()
+            .padding()
+            .navigationTitle("Sign In")
         }
-        .padding()
-        .navigationTitle("Sign In")
     }
 }
 

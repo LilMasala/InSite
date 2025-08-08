@@ -66,7 +66,8 @@ struct TherapySettings: View {
 
     var body: some View {
         NavigationView {
-            Form {
+            GeometryReader { geometry in
+                Form {
                 Section(header: Text("Profiles")) {
                                     List {
                                         ForEach(profiles.indices, id: \.self) { index in
@@ -196,7 +197,8 @@ struct HourRangeView: View {
     
     var body: some View {
         NavigationView {
-            Form {
+            GeometryReader { geometry in
+                Form {
                 Section {
                     Picker("Start Hour", selection: $startHour) {
                             ForEach(0..<24, id: \.self) { hour in
@@ -211,27 +213,31 @@ struct HourRangeView: View {
                 }
                 
                 Section {
-                    HStack(spacing: 10) {
+                    HStack(spacing: geometry.size.width * 0.02) {
                         Text("Carb Ratio: ")
-                        TextField("Carb Ratio", value: $carbRatio, formatter: NumberFormatter())}
-                    HStack(spacing: 10) {
+                        TextField("Carb Ratio", value: $carbRatio, formatter: NumberFormatter())
+                    }
+                    HStack(spacing: geometry.size.width * 0.02) {
                         Text("Basal Rate: ")
-                        TextField("Basal Rate", value: $basalRate, formatter: basalRateFormatter)}
-                    HStack(spacing: 10) {
+                        TextField("Basal Rate", value: $basalRate, formatter: basalRateFormatter)
+                    }
+                    HStack(spacing: geometry.size.width * 0.02) {
                         Text("Insulin Sensitivity: ")
-                        TextField("Insulin Sensitivity", value: $insulinSensitivity, formatter: NumberFormatter())}
-                }
-                
-                Button("Add Range") {
-                                    let newHourRange = HourRange(startHour: startHour, endHour: endHour, carbRatio: carbRatio, basalRate: basalRate, insulinSensitivity: insulinSensitivity)
-                                    profile.hourRanges.append(newHourRange)
-                                    self.presentationMode.wrappedValue.dismiss() // Dismiss the modal view
-                                }
-                            }
-                            .navigationBarTitle("Add Hour Range")
-                        }
+                        TextField("Insulin Sensitivity", value: $insulinSensitivity, formatter: NumberFormatter())
                     }
                 }
+
+                Button("Add Range") {
+                    let newHourRange = HourRange(startHour: startHour, endHour: endHour, carbRatio: carbRatio, basalRate: basalRate, insulinSensitivity: insulinSensitivity)
+                    profile.hourRanges.append(newHourRange)
+                    self.presentationMode.wrappedValue.dismiss() // Dismiss the modal view
+                }
+                .padding(.vertical, geometry.size.height * 0.01)
+            }
+            .navigationBarTitle("Add Hour Range")
+        }
+    }
+}
 
 struct ContentViewPreviews: PreviewProvider {
     static var previews: some View {

@@ -30,7 +30,7 @@ struct CustomSwiftButton: View {
             .foregroundColor(textColor)
             .cornerRadius(geometry.size.width * 0.4)
             .font(.subheadline)
-            .shadow(radius: 4)
+            .shadow(radius: geometry.size.width * 0.05)
         }
     }
 }
@@ -84,8 +84,8 @@ struct SiteChangeUI: View {
                         .scaledToFill()
                         .frame(width: geometry.size.width * 0.8, height: geometry.size.height * 0.35)
                         .clipped()
-                        .cornerRadius(50)
-                        .shadow(radius: 20)
+                        .cornerRadius(geometry.size.width * 0.125)
+                        .shadow(radius: geometry.size.width * 0.05)
                     
                     
                     VStack(spacing: geometry.size.height * 0.04) {
