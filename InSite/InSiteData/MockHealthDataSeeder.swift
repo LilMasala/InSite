@@ -97,18 +97,18 @@ struct MockHealthDataSeeder {
             dailyAvgEnergy.append(DailyAverageEnergyData(date: dayStart, averageActiveEnergy: avgActiveEnergy))
         }
 
-        uploader.uploadHourlyBgData(hourlyBgData)
-        uploader.uploadAverageBgData(avgBgData)
-        uploader.uploadHourlyBgPercentages(bgPercentages)
-        uploader.uploadHourlyHeartRateData(hourlyHeartRates)
+        uploader.uploadHourlyBgData(hourlyBgData.map { ($0, nil) })
+        uploader.uploadAverageBgData(avgBgData.map { ($0, nil) })
+        uploader.uploadHourlyBgPercentages(bgPercentages.map { ($0, nil) })
+        uploader.uploadHourlyHeartRateData(hourlyHeartRates.mapValues { ($0, nil) })
         uploader.uploadDailyAverageHeartRateData(dailyAvgHeartRates)
-        uploader.uploadHourlyExerciseData(hourlyExercise)
+        uploader.uploadHourlyExerciseData(hourlyExercise.mapValues { ($0, nil) })
         uploader.uploadDailyAverageExerciseData(dailyAvgExercise)
         uploader.uploadMenstrualData(menstrualData)
-        uploader.uploadBodyMassData(bodyMassData)
+        uploader.uploadBodyMassData(bodyMassData.map { ($0, nil) })
         uploader.uploadRestingHeartRateData(restingHeartRates)
         uploader.uploadSleepDurations(sleepDurations)
-        uploader.uploadHourlyEnergyData(hourlyEnergy)
+        uploader.uploadHourlyEnergyData(hourlyEnergy.mapValues { ($0, nil) })
         uploader.uploadDailyAverageEnergyData(dailyAvgEnergy)
     }
 }

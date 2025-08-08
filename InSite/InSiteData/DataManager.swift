@@ -140,22 +140,50 @@ class DataManager {
     
     private func processHourlyBgData(_ data: [HourlyBgData]) {
         print("Processed hourly blood glucose data")
-        uploader.uploadHourlyBgData(data)
+        Task {
+            var enriched: [(HourlyBgData, String?)] = []
+            for entry in data {
+                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: entry.startDate)
+                enriched.append((entry, profile?.profileId))
+            }
+            uploader.uploadHourlyBgData(enriched)
+        }
     }
-    
+
     private func processAvgBgData(_ data: [HourlyAvgBgData]) {
         print("Processed average blood glucose data")
-        uploader.uploadAverageBgData(data)
+        Task {
+            var enriched: [(HourlyAvgBgData, String?)] = []
+            for entry in data {
+                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: entry.startDate)
+                enriched.append((entry, profile?.profileId))
+            }
+            uploader.uploadAverageBgData(enriched)
+        }
     }
-    
+
     private func processHourlyBgPercentages(_ data: [HourlyBgPercentages]) {
         print("Processed hourly blood glucose percentages")
-        uploader.uploadHourlyBgPercentages(data)
+        Task {
+            var enriched: [(HourlyBgPercentages, String?)] = []
+            for entry in data {
+                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: entry.startDate)
+                enriched.append((entry, profile?.profileId))
+            }
+            uploader.uploadHourlyBgPercentages(enriched)
+        }
     }
-    
+
     private func processHourlyHeartRateData(_ data: [Date: HourlyHeartRateData]) {
         print("Processed hourly heart rate data")
-        uploader.uploadHourlyHeartRateData(data)
+        Task {
+            var enriched: [Date: (HourlyHeartRateData, String?)] = [:]
+            for (date, entry) in data {
+                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: date)
+                enriched[date] = (entry, profile?.profileId)
+            }
+            uploader.uploadHourlyHeartRateData(enriched)
+        }
     }
     
     private func processDailyAverageHeartRateData(_ data: [DailyAverageHeartRateData]) {
@@ -165,7 +193,14 @@ class DataManager {
     
     private func processHourlyExerciseData(_ data: [Date: HourlyExerciseData]) {
         print("Processed hourly exercise data")
-        uploader.uploadHourlyExerciseData(data)
+        Task {
+            var enriched: [Date: (HourlyExerciseData, String?)] = [:]
+            for (date, entry) in data {
+                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: date)
+                enriched[date] = (entry, profile?.profileId)
+            }
+            uploader.uploadHourlyExerciseData(enriched)
+        }
     }
 
     private func processDailyAverageExerciseData(_ data: [Date: DailyAverageExerciseData]) {
@@ -180,14 +215,19 @@ class DataManager {
     
     private func processBodyMassData(_ data: [HourlyBodyMassData]) {
         print("Processed body mass data")
-        
+
         var bodyMassDict = [Date: Double]()
-        for massData in data {
-            bodyMassDict[massData.hour] = massData.weight
+        Task {
+            var enriched: [(HourlyBodyMassData, String?)] = []
+            for massData in data {
+                bodyMassDict[massData.hour] = massData.weight
+                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: massData.hour)
+                enriched.append((massData, profile?.profileId))
+            }
+
+            print("Body mass data dictionary: \(bodyMassDict)")
+            uploader.uploadBodyMassData(enriched)
         }
-        
-        print("Body mass data dictionary: \(bodyMassDict)")
-        uploader.uploadBodyMassData(data)
     }
 
     
@@ -212,7 +252,14 @@ class DataManager {
 
     private func processHourlyEnergyData(_ data: [Date: HourlyEnergyData]) {
         print("Processed hourly energy data")
-        uploader.uploadHourlyEnergyData(data)
+        Task {
+            var enriched: [Date: (HourlyEnergyData, String?)] = [:]
+            for (date, entry) in data {
+                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: date)
+                enriched[date] = (entry, profile?.profileId)
+            }
+            uploader.uploadHourlyEnergyData(enriched)
+        }
     }
 
     private func processDailyAverageEnergyData(_ data: [DailyAverageEnergyData]) {
