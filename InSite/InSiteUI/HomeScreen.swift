@@ -26,116 +26,128 @@ struct HomeScreen: View {
     @Binding var showSignInView: Bool
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(UIColor.six).ignoresSafeArea()
-                VStack(spacing: 20) {
-                    Text("InSite")
-                        .font(.title)
-                        .fontWeight(.light)
-                        .padding(20)
-                        .background(RoundedRectangle(cornerRadius: 20).fill(pastelBlue).shadow(color: .gray, radius: 0, x: 0, y: 2))
-                        .foregroundColor(Color.white)
-                        .frame(width: 250, height: 100)
-                    
-                    Image("BearBlue")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 300, height: 300)
-                        .clipShape(Circle())
-                        .overlay(
-                            Circle().stroke(pastelBlue, lineWidth: 4).shadow(color: Color.brown, radius: 2, x: 0, y: 0).clipShape(Circle())
-                        )
-                    
-                    HStack(spacing: 5) {
-                        Spacer()
-                        
-                        VStack {
-                            NavigationLink(destination: SiteChangeUI()) {
-                                Image(systemName: "arrow.right.circle.fill")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 40, height: 40)
-                                    .foregroundColor(.white)
-                                    .background(pastelBlue)
-                                    .cornerRadius(20)
-                                    .padding()
-                                    .shadow(color: .gray, radius: 0, x: 0, y: 2)
-                            }
-                            .frame(width: 70, height: 70)
-                            Text("Change Site").fontWeight(.semibold).foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 10)
-                        
-                        VStack {
-                            Button(action: {
-                                DataManager.shared.syncHealthData {
-                                    print("Health data synchronized")
+        GeometryReader { geometry in
+            NavigationStack {
+                ZStack {
+                    Color(UIColor.six).ignoresSafeArea()
+                    VStack(spacing: geometry.size.height * 0.03) {
+                        Text("InSite")
+                            .font(.title)
+                            .fontWeight(.light)
+                            .padding(geometry.size.height * 0.025)
+                            .background(
+                                RoundedRectangle(cornerRadius: geometry.size.height * 0.03)
+                                    .fill(pastelBlue)
+                                    .shadow(color: .gray, radius: geometry.size.height * 0.002, x: 0, y: geometry.size.height * 0.002)
+                            )
+                            .foregroundColor(Color.white)
+                            .frame(width: geometry.size.width * 0.6, height: geometry.size.height * 0.12)
+
+                        Image("BearBlue")
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: geometry.size.width * 0.7, height: geometry.size.width * 0.7)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(pastelBlue, lineWidth: geometry.size.width * 0.01)
+                                    .shadow(color: Color.brown, radius: geometry.size.width * 0.005, x: 0, y: 0)
+                                    .clipShape(Circle())
+                            )
+
+                        HStack(spacing: geometry.size.width * 0.015) {
+                            Spacer()
+
+                            VStack {
+                                NavigationLink(destination: SiteChangeUI()) {
+                                    Image(systemName: "arrow.right.circle.fill")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: geometry.size.width * 0.1, height: geometry.size.width * 0.1)
+                                        .foregroundColor(.white)
+                                        .background(pastelBlue)
+                                        .cornerRadius(geometry.size.width * 0.05)
+                                        .padding(geometry.size.width * 0.02)
+                                        .shadow(color: .gray, radius: geometry.size.width * 0.002, x: 0, y: geometry.size.width * 0.002)
                                 }
-                                print("button pressed")
-                            }) {
-                                Image(systemName: "arrow.right.circle.fill")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 40, height: 40)
-                                    .foregroundColor(.white)
-                                    .background(Color.blue)
-                                    .cornerRadius(20)
-                                    .padding()
-                                    .shadow(color: .gray, radius: 0, x: 0, y: 2)
+                                .frame(width: geometry.size.width * 0.18, height: geometry.size.width * 0.18)
+                                Text("Change Site").fontWeight(.semibold).foregroundColor(.white)
                             }
-                            .frame(width: 70, height: 70)
-                            Text("Data").fontWeight(.semibold).foregroundColor(.white)
-                        }
-                        .cornerRadius(10)
-                        .padding()
-                        
-                        VStack {
-                            NavigationLink(destination: SettingsView(showSignInView: $showSignInView)) {
-                                Image(systemName: "arrow.right.circle.fill")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 40, height: 40)
-                                    .foregroundColor(.white)
-                                    .background(pastelBlue)
-                                    .cornerRadius(20)
-                                    .padding()
-                                    .shadow(color: .gray, radius: 0, x: 0, y: 2)
+                            .padding(.horizontal, geometry.size.width * 0.03)
+
+                            VStack {
+                                Button(action: {
+                                    DataManager.shared.syncHealthData {
+                                        print("Health data synchronized")
+                                    }
+                                    print("button pressed")
+                                }) {
+                                    Image(systemName: "arrow.right.circle.fill")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: geometry.size.width * 0.1, height: geometry.size.width * 0.1)
+                                        .foregroundColor(.white)
+                                        .background(Color.blue)
+                                        .cornerRadius(geometry.size.width * 0.05)
+                                        .padding(geometry.size.width * 0.02)
+                                        .shadow(color: .gray, radius: geometry.size.width * 0.002, x: 0, y: geometry.size.width * 0.002)
+                                }
+                                .frame(width: geometry.size.width * 0.18, height: geometry.size.width * 0.18)
+                                Text("Data").fontWeight(.semibold).foregroundColor(.white)
                             }
-                            .frame(width: 70, height: 70)
-                            Text("Account Settings").fontWeight(.semibold).foregroundColor(.white)
+                            .cornerRadius(geometry.size.width * 0.03)
+                            .padding(geometry.size.width * 0.02)
+
+                            VStack {
+                                NavigationLink(destination: SettingsView(showSignInView: $showSignInView)) {
+                                    Image(systemName: "arrow.right.circle.fill")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: geometry.size.width * 0.1, height: geometry.size.width * 0.1)
+                                        .foregroundColor(.white)
+                                        .background(pastelBlue)
+                                        .cornerRadius(geometry.size.width * 0.05)
+                                        .padding(geometry.size.width * 0.02)
+                                        .shadow(color: .gray, radius: geometry.size.width * 0.002, x: 0, y: geometry.size.width * 0.002)
+                                }
+                                .frame(width: geometry.size.width * 0.18, height: geometry.size.width * 0.18)
+                                Text("Account Settings").fontWeight(.semibold).foregroundColor(.white)
+                            }
+                            .padding(.horizontal, geometry.size.width * 0.03)
+
+                            Spacer()
                         }
-                        .padding(.horizontal, 10)
-                        
+
                         Spacer()
+                        Rectangle()
+                            .foregroundColor(backgroundColor2)
+                            .edgesIgnoringSafeArea(.bottom)
+                            .frame(height: geometry.size.height * 0.05)
                     }
-                    
-                    Spacer()
-                    Rectangle().foregroundColor(backgroundColor2).edgesIgnoringSafeArea(.bottom).frame(height: 40)
+                }
+                .toolbar {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        NavigationLink(destination: TherapySettings()) {
+                            Text("Therapy Settings")
+                        }
+                        .fontWeight(.semibold)
+                        .frame(width: geometry.size.width * 0.4, height: geometry.size.height * 0.07)
+                        .padding()
+                        .foregroundColor(Color.white)
+                        .background(pastelBlue)
+                        .cornerRadius(geometry.size.height * 0.04)
+                        .padding(.horizontal, geometry.size.width * 0.05)
+                        .shadow(color: .gray, radius: geometry.size.width * 0.002, x: 0, y: geometry.size.width * 0.002)
+                    }
                 }
             }
-            .toolbar {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    NavigationLink(destination: TherapySettings()) {
-                        Text("Therapy Settings")
+            .onAppear {
+                DataManager.shared.requestAuthorization { success in
+                    if success {
+                        print("Authorization granted")
+                    } else {
+                        print("Authorization denied")
                     }
-                    .fontWeight(.semibold)
-                    .frame(width: 150, height: 50)
-                    .padding()
-                    .foregroundColor(Color.white)
-                    .background(pastelBlue)
-                    .cornerRadius(40)
-                    .padding(.horizontal, 20)
-                    .shadow(color: .gray, radius: 0, x: 0, y: 2)
-                }
-            }
-        }
-        .onAppear {
-            DataManager.shared.requestAuthorization { success in
-                if success {
-                    print("Authorization granted")
-                } else {
-                    print("Authorization denied")
                 }
             }
         }
