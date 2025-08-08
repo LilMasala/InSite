@@ -9,12 +9,8 @@ class HealthDataUploader {
         return f
     }()
 
-    #if DEBUG
-    var skipWrites: Bool = true
-    #else
     var skipWrites: Bool = false
-    #endif
-
+   
     private func isoString(from date: Date) -> String { isoFormatter.string(from: date) }
 
     private func userCollection(_ name: String) -> CollectionReference? {

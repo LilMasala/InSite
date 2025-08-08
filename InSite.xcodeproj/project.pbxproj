@@ -68,6 +68,17 @@
 		D466C90A2D1DF8FB00E9CE68 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D466C9092D1DF8FB00E9CE68 /* ProfileView.swift */; };
 		D46885C62D70FA5900A8EF61 /* UserManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46885C52D70FA5900A8EF61 /* UserManager.swift */; };
 		D48725772B94FA6300DEBAE2 /* TherapySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48725762B94FA6300DEBAE2 /* TherapySettings.swift */; };
+		D4991E6B2E4677C800178EC3 /* TherapySettingsLogManager 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6A2E4677C800178EC3 /* TherapySettingsLogManager 2.swift */; };
+		D4991E6C2E4677C800178EC3 /* TherapySettingsLogManager 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6A2E4677C800178EC3 /* TherapySettingsLogManager 2.swift */; };
+		D4991E702E4677D800178EC3 /* HealthDataUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */; };
+		D4991E712E4677D800178EC3 /* HealthDataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */; };
+		D4991E722E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6F2E4677D800178EC3 /* MockHealthDataSeeder.swift */; };
+		D4991E732E4677D800178EC3 /* HealthDataUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */; };
+		D4991E742E4677D800178EC3 /* HealthDataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */; };
+		D4991E752E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6F2E4677D800178EC3 /* MockHealthDataSeeder.swift */; };
+		D4991E762E4677D800178EC3 /* HealthDataUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */; };
+		D4991E772E4677D800178EC3 /* HealthDataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */; };
+		D4991E782E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6F2E4677D800178EC3 /* MockHealthDataSeeder.swift */; };
 		D4CF03A02C9B039A004CD1D3 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = D4CF039F2C9B039A004CD1D3 /* GoogleSignIn */; };
 		D4CF03A22C9B039A004CD1D3 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = D4CF03A12C9B039A004CD1D3 /* GoogleSignInSwift */; };
 		D4CF03A52C9B380F004CD1D3 /* Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4CF03A42C9B380F004CD1D3 /* Utilities.swift */; };
@@ -131,6 +142,10 @@
 		D466C9092D1DF8FB00E9CE68 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		D46885C52D70FA5900A8EF61 /* UserManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserManager.swift; sourceTree = "<group>"; };
 		D48725762B94FA6300DEBAE2 /* TherapySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TherapySettings.swift; sourceTree = "<group>"; };
+		D4991E6A2E4677C800178EC3 /* TherapySettingsLogManager 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TherapySettingsLogManager 2.swift"; sourceTree = "<group>"; };
+		D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDataFetcher.swift; sourceTree = "<group>"; };
+		D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDataUploader.swift; sourceTree = "<group>"; };
+		D4991E6F2E4677D800178EC3 /* MockHealthDataSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockHealthDataSeeder.swift; sourceTree = "<group>"; };
 		D4CF03A42C9B380F004CD1D3 /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
 		D4CF03A62C9F2F07004CD1D3 /* SignInGoogleHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInGoogleHelper.swift; sourceTree = "<group>"; };
 		D4DC335B2BD742E600767AF2 /* RestingHeartRate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RestingHeartRate.swift; sourceTree = "<group>"; };
@@ -288,6 +303,9 @@
 		D46438402B2B5A2E005566A3 /* InSiteData */ = {
 			isa = PBXGroup;
 			children = (
+				D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */,
+				D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */,
+				D4991E6F2E4677D800178EC3 /* MockHealthDataSeeder.swift */,
 				D46438432B2B5A74005566A3 /* SiteChangeData.swift */,
 				D452A1242B325E9D00F66085 /* Menstrual_Data.swift */,
 				D400F84B2C2A0DD3002E09B7 /* BloodGlucose_Data.swift */,
@@ -361,6 +379,7 @@
 		D46885C42D70FA4300A8EF61 /* Firestore */ = {
 			isa = PBXGroup;
 			children = (
+				D4991E6A2E4677C800178EC3 /* TherapySettingsLogManager 2.swift */,
 				D46885C52D70FA5900A8EF61 /* UserManager.swift */,
 			);
 			path = Firestore;
@@ -550,8 +569,12 @@
 				D452A1252B325E9D00F66085 /* Menstrual_Data.swift in Sources */,
 				D441B9AF2B6C1969005E5D79 /* DataManager.swift in Sources */,
 				D4DC335C2BD742E600767AF2 /* RestingHeartRate.swift in Sources */,
+				D4991E6C2E4677C800178EC3 /* TherapySettingsLogManager 2.swift in Sources */,
 				D466C9042D1DF62500E9CE68 /* AuthenticationViewModel.swift in Sources */,
 				D4CF03A52C9B380F004CD1D3 /* Utilities.swift in Sources */,
+				D4991E762E4677D800178EC3 /* HealthDataUploader.swift in Sources */,
+				D4991E772E4677D800178EC3 /* HealthDataFetcher.swift in Sources */,
+				D4991E782E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */,
 				D441B9AB2B6C14BB005E5D79 /* Sleep_Data.swift in Sources */,
 				D441B9AD2B6C14C6005E5D79 /* CaloriesBurned_Data.swift in Sources */,
 				D452A1272B32630900F66085 /* HealthStore.swift in Sources */,
@@ -582,6 +605,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				D46438272B2A3FD1005566A3 /* InSiteTests.swift in Sources */,
+				D4991E6B2E4677C800178EC3 /* TherapySettingsLogManager 2.swift in Sources */,
+				D4991E732E4677D800178EC3 /* HealthDataUploader.swift in Sources */,
+				D4991E742E4677D800178EC3 /* HealthDataFetcher.swift in Sources */,
+				D4991E752E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -591,6 +618,9 @@
 			files = (
 				D46438332B2A3FD1005566A3 /* InSiteUITestsLaunchTests.swift in Sources */,
 				D46438312B2A3FD1005566A3 /* InSiteUITests.swift in Sources */,
+				D4991E702E4677D800178EC3 /* HealthDataUploader.swift in Sources */,
+				D4991E712E4677D800178EC3 /* HealthDataFetcher.swift in Sources */,
+				D4991E722E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

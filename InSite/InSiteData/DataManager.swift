@@ -16,9 +16,9 @@ class DataManager {
     }
     
     func syncHealthData(completion: @escaping () -> Void) {
-#if DEBUG
-        MockHealthDataSeeder.seed()
-#endif
+//#if DEBUG
+//        MockHealthDataSeeder.seed()
+//#endif
         
         // Retrieve last sync date from UserDefaults or set a default date
         let lastSyncDateKey = "LastSyncDate"

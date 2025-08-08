@@ -68,87 +68,88 @@ struct TherapySettings: View {
         NavigationView {
             GeometryReader { geometry in
                 Form {
-                Section(header: Text("Profiles")) {
-                                    List {
-                                        ForEach(profiles.indices, id: \.self) { index in
-                                            HStack {
-                                                Text(self.profiles[index].name)
-                                                if index == selectedProfileIndex {
-                                                    Spacer()
-                                                    Image(systemName: "checkmark")
-                                                }
-                                            }
-                                            .contentShape(Rectangle())
-                                            .onTapGesture {
-                                                if self.selectedProfileIndex != index {
-                                                    self.selectedProfileIndex = index
-                                                    let profile = self.profiles[index]
-                                                    Task {
-                                                        try? await TherapySettingsLogManager.shared.logTherapySettingsChange(profile: profile, timestamp: Date())
-                                                    }
-                                                }
-                                            }
+                    Section(header: Text("Profiles")) {
+                        List {
+                            ForEach(profiles.indices, id: \.self) { index in
+                                HStack {
+                                    Text(self.profiles[index].name)
+                                    if index == selectedProfileIndex {
+                                        Spacer()
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    if self.selectedProfileIndex != index {
+                                        self.selectedProfileIndex = index
+                                        let profile = self.profiles[index]
+                                        Task {
+                                            try? await TherapySettingsLogManager.shared.logTherapySettingsChange(profile: profile, timestamp: Date())
                                         }
-                                        .onDelete(perform: deleteProfile)
                                     }
-                                
-                    Button("Add Profile") {
-                        self.newProfileName = "" // Reset before showing
-                        self.showingAddProfileAlert = true // Reuse the boolean for showing the modal
-                    }
-                    .sheet(isPresented: $showingAddProfileAlert) {
-                        NavigationView {
-                            Form {
-                                TextField("Profile Name", text: $newProfileName)
-                                Button("Add Profile") {
-                                    let newProfile = DiabeticProfile(name: self.newProfileName, hourRanges: [])
-                                    self.profiles.append(newProfile)
-                                    self.dataStore.saveProfiles(self.profiles) // Save after adding
-                                    self.newProfileName = "" // Reset for next use
-                                    self.showingAddProfileAlert = false // Dismiss the sheet
                                 }
-                                .disabled(newProfileName.trimmingCharacters(in: .whitespaces).isEmpty)
                             }
-                            .navigationBarTitle("New Profile", displayMode: .inline)
-                            .navigationBarItems(trailing: Button("Cancel") {
-                                self.showingAddProfileAlert = false
-                            })
+                            .onDelete(perform: deleteProfile)
                         }
+                        
+                        Button("Add Profile") {
+                            self.newProfileName = "" // Reset before showing
+                            self.showingAddProfileAlert = true // Reuse the boolean for showing the modal
+                        }
+                        .sheet(isPresented: $showingAddProfileAlert) {
+                            NavigationView {
+                                Form {
+                                    TextField("Profile Name", text: $newProfileName)
+                                    Button("Add Profile") {
+                                        let newProfile = DiabeticProfile(name: self.newProfileName, hourRanges: [])
+                                        self.profiles.append(newProfile)
+                                        self.dataStore.saveProfiles(self.profiles) // Save after adding
+                                        self.newProfileName = "" // Reset for next use
+                                        self.showingAddProfileAlert = false // Dismiss the sheet
+                                    }
+                                    .disabled(newProfileName.trimmingCharacters(in: .whitespaces).isEmpty)
+                                }
+                                .navigationBarTitle("New Profile", displayMode: .inline)
+                                .navigationBarItems(trailing: Button("Cancel") {
+                                    self.showingAddProfileAlert = false
+                                })
+                            }
+                        }
+                    }
+                    
+                    Section(header: Text("Hour Ranges")) {
+                        ForEach(profiles[selectedProfileIndex].hourRanges, id: \.id) { hourRange in
+                            VStack(alignment: .leading) {
+                                Text("Start: \(TherapySettings.hourTo12HourFormat(hourRange.startHour)) - End: \(TherapySettings.hourTo12HourFormat(hourRange.endHour))")
+                                    .font(.headline)
+                                Text("Carb Ratio: \(hourRange.carbRatio, specifier: "%.2f")")
+                                Text("Basal Rate: \(hourRange.basalRate, specifier: "%.2f")")
+                                Text("Insulin Sensitivity: \(hourRange.insulinSensitivity, specifier: "%.2f")")
+                            }
+                        }
+                        .onDelete(perform: deleteHourRange)
+                    }
+                    
+                    Button("Add Hour Range") {
+                        self.showingHourRangeSheet = true
                     }
                 }
-                
-                Section(header: Text("Hour Ranges")) {
-                    ForEach(profiles[selectedProfileIndex].hourRanges, id: \.id) { hourRange in
-                        VStack(alignment: .leading) {
-                            Text("Start: \(TherapySettings.hourTo12HourFormat(hourRange.startHour)) - End: \(TherapySettings.hourTo12HourFormat(hourRange.endHour))")
-                                                            .font(.headline)
-                                        Text("Carb Ratio: \(hourRange.carbRatio, specifier: "%.2f")")
-                                        Text("Basal Rate: \(hourRange.basalRate, specifier: "%.2f")")
-                                        Text("Insulin Sensitivity: \(hourRange.insulinSensitivity, specifier: "%.2f")")
-                                    }
-                                }
-                                .onDelete(perform: deleteHourRange)
-                            }
-                            
-                            Button("Add Hour Range") {
-                                self.showingHourRangeSheet = true
-                            }
-                        }
-            .navigationBarTitle("Diabetes Management")
-            .sheet(isPresented: $showingHourRangeSheet) {
-                HourRangeView(profile: $profiles[selectedProfileIndex])
+                .navigationBarTitle("Diabetes Management")
+                .sheet(isPresented: $showingHourRangeSheet) {
+                    HourRangeView(profile: $profiles[selectedProfileIndex])
+                }
+                .onChange(of: showingHourRangeSheet) { isPresented in
+                    if !isPresented {
+                        // Save the profiles when the sheet is dismissed
+                        dataStore.saveProfiles(profiles)
+                    }
+                }
             }
-            .onChange(of: showingHourRangeSheet) { isPresented in
-                if !isPresented {
-                    // Save the profiles when the sheet is dismissed
-                    dataStore.saveProfiles(profiles)
-                }
+            .onAppear {
+                // Load profiles when the view appears
+                self.profiles = self.dataStore.loadProfiles()
             }
         }
-        .onAppear {
-               // Load profiles when the view appears
-               self.profiles = self.dataStore.loadProfiles()
-           }
     }
     
     func deleteHourRange(at offsets: IndexSet) {
@@ -199,42 +200,43 @@ struct HourRangeView: View {
         NavigationView {
             GeometryReader { geometry in
                 Form {
-                Section {
-                    Picker("Start Hour", selection: $startHour) {
+                    Section {
+                        Picker("Start Hour", selection: $startHour) {
                             ForEach(0..<24, id: \.self) { hour in
-                                    Text(self.hourTo12HourFormat(hour)).tag(hour)
+                                Text(self.hourTo12HourFormat(hour)).tag(hour)
                             }
-                    }
-                    Picker("End Hour", selection: $endHour) {
+                        }
+                        Picker("End Hour", selection: $endHour) {
                             ForEach(0..<24, id: \.self) { hour in
-                                    Text(self.hourTo12HourFormat(hour)).tag(hour)
+                                Text(self.hourTo12HourFormat(hour)).tag(hour)
                             }
+                        }
                     }
+                    
+                    Section {
+                        HStack(spacing: geometry.size.width * 0.02) {
+                            Text("Carb Ratio: ")
+                            TextField("Carb Ratio", value: $carbRatio, formatter: NumberFormatter())
+                        }
+                        HStack(spacing: geometry.size.width * 0.02) {
+                            Text("Basal Rate: ")
+                            TextField("Basal Rate", value: $basalRate, formatter: basalRateFormatter)
+                        }
+                        HStack(spacing: geometry.size.width * 0.02) {
+                            Text("Insulin Sensitivity: ")
+                            TextField("Insulin Sensitivity", value: $insulinSensitivity, formatter: NumberFormatter())
+                        }
+                    }
+                    
+                    Button("Add Range") {
+                        let newHourRange = HourRange(startHour: startHour, endHour: endHour, carbRatio: carbRatio, basalRate: basalRate, insulinSensitivity: insulinSensitivity)
+                        profile.hourRanges.append(newHourRange)
+                        self.presentationMode.wrappedValue.dismiss() // Dismiss the modal view
+                    }
+                    .padding(.vertical, geometry.size.height * 0.01)
                 }
-                
-                Section {
-                    HStack(spacing: geometry.size.width * 0.02) {
-                        Text("Carb Ratio: ")
-                        TextField("Carb Ratio", value: $carbRatio, formatter: NumberFormatter())
-                    }
-                    HStack(spacing: geometry.size.width * 0.02) {
-                        Text("Basal Rate: ")
-                        TextField("Basal Rate", value: $basalRate, formatter: basalRateFormatter)
-                    }
-                    HStack(spacing: geometry.size.width * 0.02) {
-                        Text("Insulin Sensitivity: ")
-                        TextField("Insulin Sensitivity", value: $insulinSensitivity, formatter: NumberFormatter())
-                    }
-                }
-
-                Button("Add Range") {
-                    let newHourRange = HourRange(startHour: startHour, endHour: endHour, carbRatio: carbRatio, basalRate: basalRate, insulinSensitivity: insulinSensitivity)
-                    profile.hourRanges.append(newHourRange)
-                    self.presentationMode.wrappedValue.dismiss() // Dismiss the modal view
-                }
-                .padding(.vertical, geometry.size.height * 0.01)
+                .navigationBarTitle("Add Hour Range")
             }
-            .navigationBarTitle("Add Hour Range")
         }
     }
 }

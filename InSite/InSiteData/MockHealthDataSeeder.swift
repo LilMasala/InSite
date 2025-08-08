@@ -1,115 +1,110 @@
 #if DEBUG
 import Foundation
+import HealthKit
 
-struct MockHealthDataSeeder {
-    static func seed() {
-        print("Seeding mock HealthKit data (debug mode)")
+class HealthKitSeeder {
+    static let healthStore = HKHealthStore()
 
-        let uploader = HealthDataUploader()
-        uploader.skipWrites = true
+    static func seedAll() {
+        requestAuthorization {
+            let calendar = Calendar.current
+            let now = Date()
+            guard let start = calendar.date(byAdding: .day, value: -30, to: now) else { return }
 
-        let calendar = Calendar.current
-        let now = Date()
-        guard let start = calendar.date(byAdding: .day, value: -30, to: now) else { return }
+            for dayOffset in 0..<30 {
+                guard let day = calendar.date(byAdding: .day, value: dayOffset, to: start) else { continue }
+                let dayStart = calendar.startOfDay(for: day)
 
-        var hourlyBgData: [HourlyBgData] = []
-        var avgBgData: [HourlyAvgBgData] = []
-        var bgPercentages: [HourlyBgPercentages] = []
+                for hour in 0..<24 {
+                    guard let hourStart = calendar.date(byAdding: .hour, value: hour, to: dayStart),
+                          let hourEnd = calendar.date(byAdding: .hour, value: 1, to: hourStart) else { continue }
 
-        var hourlyHeartRates: [Date: HourlyHeartRateData] = [:]
-        var dailyAvgHeartRates: [DailyAverageHeartRateData] = []
+                    // Heart Rate
+                    let hr = Double.random(in: 60...100)
+                    saveQuantity(type: .heartRate, unit: HKUnit(from: "count/min"), value: hr, start: hourStart, end: hourEnd)
 
-        var hourlyExercise: [Date: HourlyExerciseData] = [:]
-        var dailyAvgExercise: [Date: DailyAverageExerciseData] = [:]
+                    // Steps
+                    let steps = Double.random(in: 0...1000)
+                    saveQuantity(type: .stepCount, unit: .count(), value: steps, start: hourStart, end: hourEnd)
 
-        var menstrualData: [Date: DailyMenstrualData] = [:]
+                    // Active Energy
+                    let activeEnergy = Double.random(in: 10...100)
+                    saveQuantity(type: .activeEnergyBurned, unit: .kilocalorie(), value: activeEnergy, start: hourStart, end: hourEnd)
 
-        var bodyMassData: [HourlyBodyMassData] = []
+                    // Basal Energy
+                    let basalEnergy = Double.random(in: 40...80)
+                    saveQuantity(type: .basalEnergyBurned, unit: .kilocalorie(), value: basalEnergy, start: hourStart, end: hourEnd)
 
-        var restingHeartRates: [DailyRestingHeartRateData] = []
+                    // Exercise Time
+                    let exercise = Double.random(in: 0...30)
+                    saveQuantity(type: .appleExerciseTime, unit: .minute(), value: exercise, start: hourStart, end: hourEnd)
 
-        var sleepDurations: [Date: DailySleepDurations] = [:]
+                    // Body Mass
+                    let weight = Double.random(in: 60...100)
+                    saveQuantity(type: .bodyMass, unit: .gramUnit(with: .kilo), value: weight, start: hourStart, end: hourEnd)
+                }
 
-        var hourlyEnergy: [Date: HourlyEnergyData] = [:]
-        var dailyAvgEnergy: [DailyAverageEnergyData] = []
+                // Resting Heart Rate (daily)
+                let restingHR = Double.random(in: 55...75)
+                saveQuantity(type: .restingHeartRate, unit: HKUnit(from: "count/min"), value: restingHR, start: dayStart, end: dayStart)
 
-        for dayOffset in 0..<30 {
-            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: start) else { continue }
-            let dayStart = calendar.startOfDay(for: day)
+                // Menstrual Flow (category sample)
+                let flowType = Int.random(in: 1...3) // 1: light, 2: medium, 3: heavy
+                saveCategory(type: .menstrualFlow, value: flowType, start: dayStart, end: dayStart)
 
-            // Hourly data for each day
-            for hour in 0..<24 {
-                guard let hourStart = calendar.date(byAdding: .hour, value: hour, to: dayStart),
-                      let hourEnd = calendar.date(byAdding: .hour, value: 1, to: hourStart) else { continue }
-
-                // Blood Glucose
-                let startBg = Double.random(in: 80...120)
-                let endBg = Double.random(in: 80...120)
-                hourlyBgData.append(HourlyBgData(startDate: hourStart, endDate: hourEnd, startBg: startBg, endBg: endBg))
-                let avgBg = (startBg + endBg) / 2
-                avgBgData.append(HourlyAvgBgData(startDate: hourStart, endDate: hourEnd, averageBg: avgBg))
-                let percentLow = Double.random(in: 0...10)
-                let percentHigh = Double.random(in: 0...10)
-                bgPercentages.append(HourlyBgPercentages(startDate: hourStart, endDate: hourEnd, percentLow: percentLow, percentHigh: percentHigh))
-
-                // Heart Rate
-                let hr = Double.random(in: 60...100)
-                hourlyHeartRates[hourStart] = HourlyHeartRateData(hour: hourStart, heartRate: hr)
-
-                // Exercise
-                let move = Double.random(in: 0...30)
-                let exercise = Double.random(in: 0...30)
-                hourlyExercise[hourStart] = HourlyExerciseData(hour: hourStart, moveMinutes: move, exerciseMinutes: exercise)
-
-                // Body Mass
-                let weight = Double.random(in: 60...100)
-                bodyMassData.append(HourlyBodyMassData(hour: hourStart, weight: weight))
-
-                // Energy
-                let basal = Double.random(in: 40...80)
-                let active = Double.random(in: 0...100)
-                hourlyEnergy[hourStart] = HourlyEnergyData(hour: hourStart, basalEnergy: basal, activeEnergy: active)
+                // Sleep Analysis
+                let sleepStart = calendar.date(byAdding: .hour, value: 23, to: dayStart)!
+                let sleepEnd = calendar.date(byAdding: .hour, value: 7, to: sleepStart)!
+                saveCategory(type: .sleepAnalysis, value: HKCategoryValueSleepAnalysis.asleep.rawValue, start: sleepStart, end: sleepEnd)
             }
 
-            // Daily averages
-            let avgHeartRate = Double.random(in: 60...80)
-            dailyAvgHeartRates.append(DailyAverageHeartRateData(date: dayStart, averageHeartRate: avgHeartRate))
-
-            let avgMove = Double.random(in: 20...60)
-            let avgExercise = Double.random(in: 10...40)
-            dailyAvgExercise[dayStart] = DailyAverageExerciseData(date: dayStart, averageMoveMinutes: avgMove, averageExerciseMinutes: avgExercise)
-
-            let daysSince = calendar.dateComponents([.day], from: start, to: dayStart).day! % 28
-            menstrualData[dayStart] = DailyMenstrualData(date: dayStart, daysSincePeriodStart: daysSince)
-
-            let restingHR = Double.random(in: 55...75)
-            restingHeartRates.append(DailyRestingHeartRateData(date: dayStart, restingHeartRate: restingHR))
-
-            var sleepEntry = DailySleepDurations(date: dayStart)
-            sleepEntry.awake = Double.random(in: 20...60)
-            sleepEntry.asleepCore = Double.random(in: 180...300)
-            sleepEntry.asleepDeep = Double.random(in: 60...120)
-            sleepEntry.asleepREM = Double.random(in: 60...120)
-            sleepEntry.asleepUnspecified = Double.random(in: 0...30)
-            sleepDurations[dayStart] = sleepEntry
-
-            let avgActiveEnergy = Double.random(in: 200...800)
-            dailyAvgEnergy.append(DailyAverageEnergyData(date: dayStart, averageActiveEnergy: avgActiveEnergy))
+            print("✅ Finished seeding HealthKit data.")
         }
+    }
 
-        uploader.uploadHourlyBgData(hourlyBgData.map { ($0, nil) })
-        uploader.uploadAverageBgData(avgBgData.map { ($0, nil) })
-        uploader.uploadHourlyBgPercentages(bgPercentages.map { ($0, nil) })
-        uploader.uploadHourlyHeartRateData(hourlyHeartRates.mapValues { ($0, nil) })
-        uploader.uploadDailyAverageHeartRateData(dailyAvgHeartRates)
-        uploader.uploadHourlyExerciseData(hourlyExercise.mapValues { ($0, nil) })
-        uploader.uploadDailyAverageExerciseData(dailyAvgExercise)
-        uploader.uploadMenstrualData(menstrualData)
-        uploader.uploadBodyMassData(bodyMassData.map { ($0, nil) })
-        uploader.uploadRestingHeartRateData(restingHeartRates)
-        uploader.uploadSleepDurations(sleepDurations)
-        uploader.uploadHourlyEnergyData(hourlyEnergy.mapValues { ($0, nil) })
-        uploader.uploadDailyAverageEnergyData(dailyAvgEnergy)
+    static func requestAuthorization(completion: @escaping () -> Void) {
+        let typesToShare: Set = [
+            HKQuantityType.quantityType(forIdentifier: .heartRate)!,
+            HKQuantityType.quantityType(forIdentifier: .stepCount)!,
+            HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!,
+            HKQuantityType.quantityType(forIdentifier: .basalEnergyBurned)!,
+            HKQuantityType.quantityType(forIdentifier: .appleExerciseTime)!,
+            HKQuantityType.quantityType(forIdentifier: .bodyMass)!,
+            HKQuantityType.quantityType(forIdentifier: .restingHeartRate)!,
+            HKCategoryType.categoryType(forIdentifier: .menstrualFlow)!,
+            HKCategoryType.categoryType(forIdentifier: .sleepAnalysis)!
+        ]
+
+        healthStore.requestAuthorization(toShare: typesToShare, read: []) { success, error in
+            if success {
+                DispatchQueue.main.async {
+                    completion()
+                }
+            } else {
+                print("❌ HealthKit auth failed: \(error?.localizedDescription ?? "unknown error")")
+            }
+        }
+    }
+
+    static func saveQuantity(type: HKQuantityTypeIdentifier, unit: HKUnit, value: Double, start: Date, end: Date) {
+        guard let quantityType = HKQuantityType.quantityType(forIdentifier: type) else { return }
+        let quantity = HKQuantity(unit: unit, doubleValue: value)
+        let sample = HKQuantitySample(type: quantityType, quantity: quantity, start: start, end: end)
+        healthStore.save(sample) { success, error in
+            if !success {
+                print("❌ Failed to save \(type.rawValue): \(error?.localizedDescription ?? "unknown error")")
+            }
+        }
+    }
+
+    static func saveCategory(type: HKCategoryTypeIdentifier, value: Int, start: Date, end: Date) {
+        guard let categoryType = HKCategoryType.categoryType(forIdentifier: type) else { return }
+        let sample = HKCategorySample(type: categoryType, value: value, start: start, end: end)
+        healthStore.save(sample) { success, error in
+            if !success {
+                print("❌ Failed to save \(type.rawValue): \(error?.localizedDescription ?? "unknown error")")
+            }
+        }
     }
 }
 #endif

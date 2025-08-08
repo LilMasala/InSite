@@ -43,20 +43,24 @@ extension HealthStore {
 
             // Loop through each day in the range and calculate the days since the last period start
             while currentDate <= endDate {
-                if let lastStart = lastPeriodStart, calendar.isDate(currentDate, equalTo: lastStart, toGranularity: .day) || currentDate < lastStart {
-                    let daysSinceStart = calendar.dateComponents([.day], from: lastStart, to: currentDate).day ?? 0
-                    menstrualData[currentDate] = DailyMenstrualData(date: currentDate, daysSincePeriodStart: daysSinceStart)
-                } else {
-                    menstrualData[currentDate] = DailyMenstrualData(date: currentDate, daysSincePeriodStart: -1)  // No period recorded
+                let dayStart = calendar.startOfDay(for: currentDate)
+
+                // First, check if there's a new period start today
+                if let periodStart = periodStartDates[dayStart] {
+                    lastPeriodStart = periodStart
                 }
 
-                // Check if there is a period start on 'currentDate'
-                if let periodStart = periodStartDates[calendar.startOfDay(for: currentDate)] {
-                    lastPeriodStart = periodStart
+                // Now calculate days since period start
+                if let lastStart = lastPeriodStart {
+                    let daysSinceStart = calendar.dateComponents([.day], from: calendar.startOfDay(for: lastStart), to: dayStart).day ?? 0
+                    menstrualData[dayStart] = DailyMenstrualData(date: dayStart, daysSincePeriodStart: daysSinceStart)
+                } else {
+                    menstrualData[dayStart] = DailyMenstrualData(date: dayStart, daysSincePeriodStart: -1)  // No period recorded yet
                 }
 
                 currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate)!
             }
+
 
             completion(.success(menstrualData))
         }
