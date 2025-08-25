@@ -150,6 +150,25 @@ class HealthDataUploader {
         }
         commit(batch, label: "menstrual")
     }
+    
+    // in HealthDataUploader
+    func uploadHourlyBgURoc(_ data: [(HourlyBgURoc, String?)]) {
+        guard let collection = userCollection("blood_glucose") else { return }
+        let batch = Firestore.firestore().batch()
+        for (entry, profileId) in data {
+            var dict: [String: Any] = [
+                "startDate": isoString(from: entry.startDate),
+                "endDate": isoString(from: entry.endDate),
+                "type": "uROC"
+            ]
+            if let u = entry.uRoc { dict["uRoc"] = u }                   // mg/dL per sec
+            if let e = entry.expectedEndBg { dict["expectedEndBg"] = e } // optional
+            if let profileId = profileId { dict["therapyProfileId"] = profileId }
+            batch.setData(dict, forDocument: collection.document("uroc-\(isoString(from: entry.startDate))"))
+        }
+        commit(batch, label: "uROC")
+    }
+
 
     func uploadBodyMassData(_ data: [(HourlyBodyMassData, String?)]) {
         guard let collection = userCollection("body_mass") else { return }

@@ -38,6 +38,11 @@ class DataManager {
                 self.processHourlyBgData(hourlyBgData)
                 self.processAvgBgData(avgBgData)
                 self.processHourlyBgPercentages(hourlyPercentages)
+                
+                let uroc = BgAnalytics.computeHourlyURoc(hourlyBgData: hourlyBgData, targetBG: 110)
+                    self.processHourlyBgURoc(uroc)
+
+                print("Success processing all BG Data!")
             case .failure(let error):
                 print("BG fetch error: \(error)")
             }
@@ -190,6 +195,19 @@ class DataManager {
         print("Processed daily average heart rate data")
         uploader.uploadDailyAverageHeartRateData(data)
     }
+    
+    private func processHourlyBgURoc(_ data: [HourlyBgURoc]) {
+        print("Processed hourly BG uROC")
+        Task {
+            var enriched: [(HourlyBgURoc, String?)] = []
+            for entry in data {
+                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: entry.startDate)
+                enriched.append((entry, profile?.profileId))
+            }
+            uploader.uploadHourlyBgURoc(enriched) // add this method in HealthDataUploader
+        }
+    }
+
     
     private func processHourlyExerciseData(_ data: [Date: HourlyExerciseData]) {
         print("Processed hourly exercise data")
