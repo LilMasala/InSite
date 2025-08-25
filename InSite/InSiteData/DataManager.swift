@@ -16,42 +16,35 @@ class DataManager {
     }
     
     func syncHealthData(completion: @escaping () -> Void) {
-//#if DEBUG
-//        MockHealthDataSeeder.seed()
-//#endif
-        
-        // Retrieve last sync date from UserDefaults or set a default date
         let lastSyncDateKey = "LastSyncDate"
-        let startDate: Date
-        if let savedDate = UserDefaults.standard.object(forKey: lastSyncDateKey) as? Date {
-            startDate = savedDate
-        } else {
-            startDate = Calendar.current.date(byAdding: .month, value: -1, to: Date())!
-        }
+        let startDate: Date = (UserDefaults.standard.object(forKey: lastSyncDateKey) as? Date)
+            ?? Calendar.current.date(byAdding: .month, value: -1, to: Date())!
         let endDate = Date()
-        
-        // Fetch Blood Glucose Data
+
+        // ---- Blood Glucose (uses its own internal subtasks) ----
         dispatchGroup.enter()
-        fetcher.fetchAllBgData(start: startDate, end: endDate, group: dispatchGroup) { result in
+        print("Fetching BG Data")
+        let bgGroup = DispatchGroup()
+        fetcher.fetchAllBgData(start: startDate, end: endDate, group: bgGroup) { result in
+            print("BG fetch completed with result: \(result)")
             switch result {
             case .success(let (hourlyBgData, avgBgData, hourlyPercentages)):
+                print("BG success, hourly=\(hourlyBgData.count) avg=\(avgBgData.count) pct=\(hourlyPercentages.count)")
                 self.processHourlyBgData(hourlyBgData)
                 self.processAvgBgData(avgBgData)
                 self.processHourlyBgPercentages(hourlyPercentages)
-                
                 let uroc = BgAnalytics.computeHourlyURoc(hourlyBgData: hourlyBgData, targetBG: 110)
-                    self.processHourlyBgURoc(uroc)
-
-                print("Success processing all BG Data!")
+                self.processHourlyBgURoc(uroc)
             case .failure(let error):
                 print("BG fetch error: \(error)")
             }
             self.dispatchGroup.leave()
         }
-        
-        // Fetch Heart Rate Data
+
+        // ---- Heart Rate (has internal parallelization) ----
         dispatchGroup.enter()
-        fetcher.fetchHeartRateData(start: startDate, end: endDate, group: dispatchGroup) { result in
+        let hrGroup = DispatchGroup()
+        fetcher.fetchHeartRateData(start: startDate, end: endDate, group: hrGroup) { result in
             switch result {
             case .success(let (hourlyData, dailyAverageData)):
                 self.processHourlyHeartRateData(hourlyData)
@@ -61,10 +54,11 @@ class DataManager {
             }
             self.dispatchGroup.leave()
         }
-        
-        // Fetch Exercise Data
+
+        // ---- Exercise (has internal parallelization) ----
         dispatchGroup.enter()
-        fetcher.fetchExerciseData(start: startDate, end: endDate, group: dispatchGroup) { result in
+        let exGroup = DispatchGroup()
+        fetcher.fetchExerciseData(start: startDate, end: endDate, group: exGroup) { result in
             switch result {
             case .success(let (hourlyData, dailyAverageData)):
                 self.processHourlyExerciseData(hourlyData)
@@ -74,8 +68,8 @@ class DataManager {
             }
             self.dispatchGroup.leave()
         }
-        
-        // Fetch Menstrual Data
+
+        // ---- Menstrual ----
         dispatchGroup.enter()
         fetcher.fetchMenstrualData(start: startDate, end: endDate) { result in
             switch result {
@@ -86,10 +80,10 @@ class DataManager {
             }
             self.dispatchGroup.leave()
         }
-        
-        // Fetch Body Mass Data
+
+        // ---- Body Mass ----
         dispatchGroup.enter()
-        fetcher.fetchBodyMassData(start: startDate, end: endDate, group: dispatchGroup) { result in
+        fetcher.fetchBodyMassData(start: startDate, end: endDate, group: DispatchGroup()) { result in
             switch result {
             case .success(let data):
                 self.processBodyMassData(data)
@@ -98,8 +92,8 @@ class DataManager {
             }
             self.dispatchGroup.leave()
         }
-        
-        // Fetch Resting Heart Rate Data
+
+        // ---- Resting HR ----
         dispatchGroup.enter()
         fetcher.fetchRestingHeartRate(start: startDate, end: endDate) { result in
             switch result {
@@ -110,8 +104,8 @@ class DataManager {
             }
             self.dispatchGroup.leave()
         }
-        
-        // Fetch Sleep Durations
+
+        // ---- Sleep ----
         dispatchGroup.enter()
         fetcher.fetchSleepDurations(start: startDate, end: endDate) { result in
             switch result {
@@ -122,10 +116,11 @@ class DataManager {
             }
             self.dispatchGroup.leave()
         }
-        
-        // Fetch Energy Data
+
+        // ---- Energy (has internal parallelization) ----
         dispatchGroup.enter()
-        fetcher.fetchEnergyData(start: startDate, end: endDate, group: dispatchGroup) { result in
+        let energyGroup = DispatchGroup()
+        fetcher.fetchEnergyData(start: startDate, end: endDate, group: energyGroup) { result in
             switch result {
             case .success(let (hourlyEnergyData, dailyAverageEnergyData)):
                 self.processHourlyEnergyData(hourlyEnergyData)
@@ -135,13 +130,14 @@ class DataManager {
             }
             self.dispatchGroup.leave()
         }
-        
+
+        // Final notify
         dispatchGroup.notify(queue: .main) {
-            // Save the end date as the last sync date
             UserDefaults.standard.set(endDate, forKey: lastSyncDateKey)
             completion()
         }
     }
+
     
     private func processHourlyBgData(_ data: [HourlyBgData]) {
         print("Processed hourly blood glucose data")
