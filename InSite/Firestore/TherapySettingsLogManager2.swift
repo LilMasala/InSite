@@ -48,3 +48,24 @@ final class TherapySettingsLogManager {
         return nil
     }
 }
+
+
+
+extension TherapySettingsLogManager {
+    func loadSnapshots(since start: Date, until end: Date) async throws -> [TherapySnapshot] {
+        guard let uid = Auth.auth().currentUser?.uid else { return [] }
+        let col = logCollection(for: uid)
+        let q = col
+            .whereField("timestamp", isLessThanOrEqualTo: end)
+            .order(by: "timestamp", descending: false)
+        let snap = try await q.getDocuments()
+
+        // If you want a lower bound, you can filter in-memory to >= start.
+        let docs: [TherapySnapshot] = try snap.documents
+            .compactMap { try $0.data(as: TherapySnapshot.self) }
+            .filter { $0.timestamp <= end && $0.timestamp >= start.addingTimeInterval(-86_400) } // small buffer
+        return docs
+    }
+}
+
+

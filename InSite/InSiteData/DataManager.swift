@@ -20,6 +20,10 @@ class DataManager {
         let startDate: Date = (UserDefaults.standard.object(forKey: lastSyncDateKey) as? Date)
             ?? Calendar.current.date(byAdding: .month, value: -1, to: Date())!
         let endDate = Date()
+        
+        // Before dispatchGroup.notify(...)
+        self.backfillTherapySettingsByHour(from: startDate, to: endDate, tz: TimeZone(identifier: "America/Detroit") ?? .current)
+
 
         // ---- Blood Glucose (uses its own internal subtasks) ----
         dispatchGroup.enter()
@@ -281,4 +285,112 @@ class DataManager {
         uploader.uploadDailyAverageEnergyData(data)
     }
 
+    func backfillTherapySettingsByHour(from startDate: Date, to endDate: Date, tz: TimeZone = .current) {
+        Task {
+            // 0) Decide window with a small buffer and last-backfill memory
+            let key = "LastTherapyHourBackfill"
+            let last = (UserDefaults.standard.object(forKey: key) as? Date)
+            let windowStart = max(last ?? startDate, startDate).addingTimeInterval(-86_400) // -24h buffer
+            let windowEnd = endDate
+
+            // 1) Load snapshots once
+            let snaps = (try? await TherapySettingsLogManager.shared.loadSnapshots(since: windowStart, until: windowEnd)) ?? []
+            guard !snaps.isEmpty else {
+                print("No therapy snapshots; skipping backfill")
+                UserDefaults.standard.set(windowEnd, forKey: key)
+                return
+            }
+
+            // 2) Build intervals: [snap[i].timestamp, snap[i+1].timestamp)
+            struct Interval { let start: Date; let end: Date?; let snap: TherapySnapshot }
+            var intervals: [Interval] = []
+            for i in 0..<snaps.count {
+                let startT = snaps[i].timestamp
+                let endT = (i+1 < snaps.count) ? snaps[i+1].timestamp : nil
+                intervals.append(Interval(start: startT, end: endT, snap: snaps[i]))
+            }
+
+            // 3) Walk each UTC hour in window and resolve settings
+            var hours: [TherapyHour] = []
+            for hourStart in eachHourUTC(from: windowStart, to: windowEnd) {
+                // find interval covering hourStart
+                guard let iv = intervals.last(where: { hourStart >= $0.start && ( $0.end == nil || hourStart < $0.end! ) }) else {
+                    continue // before first snapshot; skip or choose policy
+                }
+                // map hourStart -> local hour to select HourRange
+                let localHour = localHour(for: hourStart, tz: tz)
+                guard let hr = rangeFor(localHour: localHour, in: iv.snap.hourRanges) else {
+                    // if gap, you can choose to skip or fallback
+                    continue
+                }
+                hours.append(
+                    TherapyHour(
+                        hourStartUtc: hourStart,
+                        profileId: iv.snap.profileId,
+                        profileName: iv.snap.profileName,
+                        snapshotTimestamp: iv.snap.timestamp,
+                        carbRatio: hr.carbRatio,
+                        basalRate: hr.basalRate,
+                        insulinSensitivity: hr.insulinSensitivity,
+                        localTz: tz,
+                        localHour: localHour
+                    )
+                )
+            }
+
+            // 4) Upload in batches (idempotent: doc id = hourStartUtc)
+            uploader.uploadTherapySettingsByHour(hours)
+
+            // 5) Advance checkpoint
+            UserDefaults.standard.set(windowEnd, forKey: key)
+        }
+    }
+
+    // --- helpers ---
+    private func eachHourUTC(from start: Date, to end: Date) -> [Date] {
+        var out: [Date] = []
+        let cal = Calendar(identifier: .gregorian)
+        var cur = floorToHourUTC(start)
+        let stop = floorToHourUTC(end)
+        while cur <= stop {
+            out.append(cur)
+            cur = cal.date(byAdding: .hour, value: 1, to: cur)!
+        }
+        return out
+    }
+
+    private func floorToHourUTC(_ d: Date) -> Date {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        let comps = cal.dateComponents([.year,.month,.day,.hour], from: d)
+        return cal.date(from: comps)!
+    }
+
+    private func localHour(for utcHourStart: Date, tz: TimeZone) -> Int {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = tz
+        return cal.component(.hour, from: utcHourStart) // using the same moment, just viewed in local tz
+    }
+
+    private func rangeFor(localHour: Int, in ranges: [HourRange]) -> HourRange? {
+        // supports wraparound: e.g., 22..5 means 22,23,0,1,2,3,4,5
+        func contains(_ r: HourRange, _ h: Int) -> Bool {
+            if r.startHour <= r.endHour {
+                return (r.startHour...r.endHour).contains(h)
+            } else {
+                return h >= r.startHour || h <= r.endHour
+            }
+        }
+        // If multiple match, prefer the most specific (shortest span)
+        return ranges
+            .filter { contains($0, localHour) }
+            .sorted { span($0) < span($1) }
+            .first
+    }
+
+    private func span(_ r: HourRange) -> Int {
+        r.startHour <= r.endHour
+            ? (r.endHour - r.startHour + 1)
+            : (24 - r.startHour + r.endHour + 1)
+    }
 }

@@ -2,6 +2,22 @@ import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 
+
+struct TherapyHour {
+    let hourStartUtc: Date
+    let profileId: String
+    let profileName: String
+    let snapshotTimestamp: Date
+    let carbRatio: Double
+    let basalRate: Double
+    let insulinSensitivity: Double
+    // optional: local tz info for convenience
+    let localTz: TimeZone?
+    let localHour: Int?
+}
+
+
+
 class HealthDataUploader {
     private let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -244,5 +260,46 @@ class HealthDataUploader {
             batch.setData(dict, forDocument: collection.document("average-\(isoString(from: entry.date))"))
         }
         commit(batch, label: "avg energy")
+    }
+}
+
+
+extension HealthDataUploader {
+    func uploadTherapySettingsByHour(_ hours: [TherapyHour]) {
+        guard let collection = userCollection("therapy_settings") else { return }
+
+        // Firestore limit: 500 operations per batch.
+        for batchHours in chunk(hours, size: 450) {
+            let batch = Firestore.firestore().batch()
+            for h in batchHours {
+                let id = isoHourDocId(h.hourStartUtc) // e.g., "2025-01-14T16:00:00Z"
+                var dict: [String: Any] = [
+                    "hourStartUtc": isoString(from: h.hourStartUtc),
+                    "profileId": h.profileId,
+                    "profileName": h.profileName,
+                    "snapshotTimestamp": isoString(from: h.snapshotTimestamp),
+                    "carbRatio": h.carbRatio,
+                    "basalRate": h.basalRate,
+                    "insulinSensitivity": h.insulinSensitivity
+                ]
+                if let tz = h.localTz {
+                    dict["localTz"] = tz.identifier
+                    if let lh = h.localHour { dict["localHour"] = lh }
+                }
+                batch.setData(dict, forDocument: collection.document(id))
+            }
+            commit(batch, label: "therapy settings by hour")
+        }
+    }
+
+    private func isoHourDocId(_ date: Date) -> String {
+        // Reuse your ISO formatter but force to the hour start in UTC
+        isoFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        // If your isoFormatter includes fractional seconds, strip them, or pre-round to hour.
+        return isoString(from: date)
+    }
+
+    private func chunk<T>(_ xs: [T], size: Int) -> [[T]] {
+        stride(from: 0, to: xs.count, by: size).map { Array(xs[$0..<min($0+size, xs.count)]) }
     }
 }
