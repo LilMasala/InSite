@@ -21,6 +21,7 @@ struct HourRange: Codable, Identifiable {
 
 class ProfileDataStore {
     private let profilesKey = "profilesData"
+    private let activeProfileKey = "activeProfileID"
 
     func saveProfiles(_ profiles: [DiabeticProfile]) {
         let encoder = JSONEncoder()
@@ -28,7 +29,7 @@ class ProfileDataStore {
             UserDefaults.standard.set(encoded, forKey: profilesKey)
             print("Saving Profiles: \(profiles.count)")
         }
-        
+
     }
 
     func loadProfiles() -> [DiabeticProfile] {
@@ -38,13 +39,25 @@ class ProfileDataStore {
                 print("Loaded profiles: \(loadedProfiles.count)")
                 return loadedProfiles
             }
-           
+
         }
-        
+
         // Return a default profile if no profiles are saved
         let defaultHourRange = HourRange(startHour: 0, endHour: 23, carbRatio: 1.0, basalRate: 0.1, insulinSensitivity: 50.0)
         let defaultProfile = DiabeticProfile(name: "Default Profile", hourRanges: [defaultHourRange])
         return [defaultProfile]
+    }
+
+    func saveActiveProfileID(_ id: String) {
+        UserDefaults.standard.set(id, forKey: activeProfileKey)
+    }
+
+    func loadActiveProfileID() -> String? {
+        UserDefaults.standard.string(forKey: activeProfileKey)
+    }
+
+    func clearActiveProfileID() {
+        UserDefaults.standard.removeObject(forKey: activeProfileKey)
     }
 }
 
@@ -83,6 +96,7 @@ struct TherapySettings: View {
                                     if self.selectedProfileIndex != index {
                                         self.selectedProfileIndex = index
                                         let profile = self.profiles[index]
+                                        self.dataStore.saveActiveProfileID(profile.id)
                                         Task {
                                             try? await TherapySettingsLogManager.shared.logTherapySettingsChange(profile: profile, timestamp: Date())
                                         }
@@ -148,10 +162,21 @@ struct TherapySettings: View {
             .onAppear {
                 // Load profiles when the view appears
                 self.profiles = self.dataStore.loadProfiles()
+                if let activeProfileID = self.dataStore.loadActiveProfileID(),
+                   let activeIndex = self.profiles.firstIndex(where: { $0.id == activeProfileID }) {
+                    self.selectedProfileIndex = activeIndex
+                } else {
+                    self.selectedProfileIndex = min(self.selectedProfileIndex, max(self.profiles.count - 1, 0))
+                    if let firstProfile = self.profiles.first {
+                        self.dataStore.saveActiveProfileID(firstProfile.id)
+                    } else {
+                        self.dataStore.clearActiveProfileID()
+                    }
+                }
             }
         }
     }
-    
+
     func deleteHourRange(at offsets: IndexSet) {
         if !profiles.isEmpty && selectedProfileIndex < profiles.count {
             profiles[selectedProfileIndex].hourRanges.remove(atOffsets: offsets)
@@ -162,8 +187,10 @@ struct TherapySettings: View {
         profiles.remove(atOffsets: offsets)
         if profiles.isEmpty {
             selectedProfileIndex = 0 // Reset to default or handle empty state appropriately
+            dataStore.clearActiveProfileID()
         } else {
             selectedProfileIndex = min(selectedProfileIndex, profiles.count - 1)
+            dataStore.saveActiveProfileID(profiles[selectedProfileIndex].id)
         }
         dataStore.saveProfiles(profiles) // Save after deletion
     }
