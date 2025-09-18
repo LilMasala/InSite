@@ -300,6 +300,7 @@ class DataManager {
                 UserDefaults.standard.set(windowEnd, forKey: key)
                 return
             }
+            print("snapshot not empty")
 
             // 2) Build intervals: [snap[i].timestamp, snap[i+1].timestamp)
             struct Interval { let start: Date; let end: Date?; let snap: TherapySnapshot }

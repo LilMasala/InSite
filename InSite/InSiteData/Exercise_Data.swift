@@ -48,15 +48,15 @@ extension HealthStore {
                     }
                     
                     queue.sync {
-                        print("hourDate: \(hourDate)")
-                        print("newData.totalMinutes: \(newData.totalMinutes)")
+                       // print("hourDate: \(hourDate)")
+                        //print("newData.totalMinutes: \(newData.totalMinutes)")
                         
                         if var existingData = hourlyExerciseData[hourDate] {
-                            print("hourlyExerciseData[hourDate] exists")
+                        //    print("hourlyExerciseData[hourDate] exists")
                             existingData.moveMinutes += newData.totalMinutes
                             hourlyExerciseData[hourDate] = existingData
                         } else {
-                            print("hourlyExerciseData[hourDate] does not exist")
+                          //  print("hourlyExerciseData[hourDate] does not exist")
                             let defaultData = HourlyExerciseData(hour: hourDate, moveMinutes: 0, exerciseMinutes: 0)
                             var newEntry = defaultData
                             newEntry.moveMinutes += newData.totalMinutes
@@ -77,20 +77,20 @@ extension HealthStore {
             case .success(let results):
                 for (hour, newData) in results {
                     guard let hourDate = hour as? Date else {
-                        print("Invalid date in results: \(hour)")
+                       // print("Invalid date in results: \(hour)")
                         continue
                     }
                     
                     queue.sync {
-                        print("hourDate: \(hourDate)")
-                        print("newData.totalMinutes: \(newData.totalMinutes)")
+                      //  print("hourDate: \(hourDate)")
+                        //print("newData.totalMinutes: \(newData.totalMinutes)")
                         
                         if var existingData = hourlyExerciseData[hourDate] {
-                            print("hourlyExerciseData[hourDate] exists")
+                          //  print("hourlyExerciseData[hourDate] exists")
                             existingData.exerciseMinutes += newData.totalMinutes
                             hourlyExerciseData[hourDate] = existingData
                         } else {
-                            print("hourlyExerciseData[hourDate] does not exist")
+                           // print("hourlyExerciseData[hourDate] does not exist")
                             let defaultData = HourlyExerciseData(hour: hourDate, moveMinutes: 0, exerciseMinutes: 0)
                             var newEntry = defaultData
                             newEntry.exerciseMinutes += newData.totalMinutes

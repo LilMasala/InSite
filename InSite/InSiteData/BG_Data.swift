@@ -120,7 +120,7 @@ extension HealthStore {
         // 1) First/Last per hour
         dispatchGroup.enter()
         fetchBgAtStartandEnd(start: start, end: end, healthStore: healthStore, bloodGlucoseType: bloodGlucoseType) { result in
-            print("BG: fetchBgAtStartandEnd returned \(result)")
+            //print("BG: fetchBgAtStartandEnd returned \(result)")
             switch result {
             case .success(let data): hourlyBgData = data
             case .failure(let error):
@@ -133,7 +133,7 @@ extension HealthStore {
         // 2) Average per hour
         dispatchGroup.enter()
         fetchAvgBg(start: start, end: end, healthStore: healthStore, bloodGlucoseType: bloodGlucoseType) { result in
-            print("BG: fetchAvgBg returned \(result)")
+            //print("BG: fetchAvgBg returned \(result)")
             switch result {
             case .success(let data): avgBgData = data
             case .failure(let error):
@@ -146,7 +146,7 @@ extension HealthStore {
         // 3) Percent low/high per hour
         dispatchGroup.enter()
         calculatePercentLowAndHigh(start: start, end: end, healthStore: healthStore, dispatchGroup: dispatchGroup, bloodGlucoseType: bloodGlucoseType) { result in
-            print("BG: calculatePercentLowAndHigh returned \(result)")
+//            print("BG: calculatePercentLowAndHigh returned \(result)")
 
             switch result {
             case .success(let data): hourlyPercentages = data
