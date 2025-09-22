@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import FirebaseAuth
 
 @MainActor
 final class SettingsViewModel: ObservableObject {
@@ -18,7 +19,11 @@ final class SettingsViewModel: ObservableObject {
         }
     }
     func logOut() throws {
+        let departingUid = Auth.auth().currentUser?.uid
         try AuthManager.shared.signOut()
+        ProfileDataStore().clearData(for: departingUid)
+        SiteChangeData.shared.clearData(for: departingUid)
+        DataManager.shared.handleLogout(for: departingUid)
     }
     
     func resetPassword() async throws {

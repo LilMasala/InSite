@@ -10,14 +10,38 @@ class DataManager {
     private let fetcher = HealthDataFetcher()
     private let uploader = HealthDataUploader()
     private let dispatchGroup = DispatchGroup()
+    private var authListener: AuthStateDidChangeListenerHandle?
 
-    private init() {}
+    private init() {
+        uploader.refresh(for: Auth.auth().currentUser?.uid)
+        authListener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            guard let self = self else { return }
+            if let uid = user?.uid {
+                self.uploader.refresh(for: uid)
+            } else {
+                self.uploader.clear()
+            }
+        }
+    }
+
+    deinit {
+        if let handle = authListener {
+            Auth.auth().removeStateDidChangeListener(handle)
+        }
+    }
     
     func requestAuthorization(completion: @escaping (Bool) -> Void) {
         fetcher.requestAuthorization(completion: completion)
     }
     
     func syncHealthData(completion: @escaping () -> Void) {
+        guard let uid = Auth.auth().currentUser?.uid else {
+            print("[DataManager] No authenticated user; skipping health data sync request.")
+            DispatchQueue.main.async { completion() }
+            return
+        }
+
+        uploader.refresh(for: uid)
         let lastSyncDateKey = "LastSyncDate"
         let startDate: Date = (UserDefaults.standard.object(forKey: lastSyncDateKey) as? Date)
             ?? Calendar.current.date(byAdding: .month, value: -1, to: Date())!
@@ -400,8 +424,13 @@ class DataManager {
 
 extension DataManager {
     func backfillSiteChangeDaily(from startDate: Date, to endDate: Date, tz: TimeZone = .current) {
-        Task {
-            guard let uid = Auth.auth().currentUser?.uid else { return }
+        Task { [weak self] in
+            guard let self = self else { return }
+            guard let uid = Auth.auth().currentUser?.uid else {
+                print("[DataManager] No authenticated user; skipping site-change daily backfill.")
+                return
+            }
+            self.uploader.refresh(for: uid)
             let eventsRef = Firestore.firestore()
                 .collection("users").document(uid)
                 .collection("site_changes").document("events")
@@ -443,9 +472,15 @@ extension DataManager {
                 cur = cal.date(byAdding: .day, value: 1, to: cur)!
             }
 
-            HealthDataUploader().upsertDailySiteStatus(
+            self.uploader.upsertDailySiteStatus(
                 rows.map { (date: $0.0, daysSince: $0.1, location: $0.2) }
             )
         }
+    }
+}
+
+extension DataManager {
+    func handleLogout(for uid: String?) {
+        uploader.clear()
     }
 }
