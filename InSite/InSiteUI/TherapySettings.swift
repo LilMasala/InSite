@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import FirebaseAuth
 
 //Hold down on long press
 
@@ -20,8 +21,18 @@ struct HourRange: Codable, Identifiable {
 }
 
 class ProfileDataStore {
-    private let profilesKey = "profilesData"
-    private let activeProfileKey = "activeProfileID"
+    private enum DefaultsKey {
+        static let profiles = "profilesData"
+        static let activeProfile = "activeProfileID"
+    }
+
+    private func key(for base: String, uid: String? = Auth.auth().currentUser?.uid) -> String {
+        guard let uid = uid, !uid.isEmpty else { return base }
+        return "\(base)_\(uid)"
+    }
+
+    private var profilesKey: String { key(for: DefaultsKey.profiles) }
+    private var activeProfileKey: String { key(for: DefaultsKey.activeProfile) }
 
     func saveProfiles(_ profiles: [DiabeticProfile]) {
         let encoder = JSONEncoder()
@@ -58,6 +69,14 @@ class ProfileDataStore {
 
     func clearActiveProfileID() {
         UserDefaults.standard.removeObject(forKey: activeProfileKey)
+    }
+
+    func clearData(for uid: String?) {
+        let defaults = UserDefaults.standard
+        let profilesKey = key(for: DefaultsKey.profiles, uid: uid)
+        let activeKey = key(for: DefaultsKey.activeProfile, uid: uid)
+        defaults.removeObject(forKey: profilesKey)
+        defaults.removeObject(forKey: activeKey)
     }
 }
 

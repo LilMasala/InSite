@@ -531,12 +531,43 @@ struct SiteChangeDailyRecord: StreamRecord {
 // MARK: - Convenience façade (optionally keep this name for call sites)
 
 final class HealthDataUploader {
-    private let uploader = FirestoreStreamUploader()
+    private var uploader: FirestoreStreamUploader?
+    private var cachedUid: String?
     var skipWrites: Bool = false
+
+    init() {
+        refresh(for: Auth.auth().currentUser?.uid)
+    }
+
+    func refresh(for uid: String?) {
+        guard cachedUid != uid else { return }
+        cachedUid = uid
+        if let uid = uid, !uid.isEmpty {
+            uploader = FirestoreStreamUploader(uid: uid)
+        } else {
+            uploader = nil
+        }
+    }
+
+    func clear() {
+        cachedUid = nil
+        uploader = nil
+    }
+
+    private func currentUploader(function: String = #function) -> FirestoreStreamUploader? {
+        if uploader == nil {
+            refresh(for: Auth.auth().currentUser?.uid)
+        }
+        guard let uploader else {
+            print("[HealthDataUploader] Missing uploader for \(function); ensure user is authenticated before syncing.")
+            return nil
+        }
+        return uploader
+    }
 
     // ---- BG ----
     func uploadHourlyBgData(_ data: [(HourlyBgData, String?)]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs: [BGHourlyRecord] = data.map { (e, pid) in
             BGHourlyRecord(start: e.startDate, end: e.endDate, startBg: e.startBg, endBg: e.endBg, therapyProfileId: pid)
         }
@@ -544,7 +575,7 @@ final class HealthDataUploader {
     }
 
     func uploadAverageBgData(_ data: [(HourlyAvgBgData, String?)]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs: [BGAverageHourlyRecord] = data.map { (e, pid) in
             BGAverageHourlyRecord(start: e.startDate, end: e.endDate, averageBg: e.averageBg, therapyProfileId: pid)
         }
@@ -552,7 +583,7 @@ final class HealthDataUploader {
     }
 
     func uploadHourlyBgPercentages(_ data: [(HourlyBgPercentages, String?)]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs: [BGPercentHourlyRecord] = data.map { (e, pid) in
             BGPercentHourlyRecord(start: e.startDate, end: e.endDate, percentLow: e.percentLow, percentHigh: e.percentHigh, therapyProfileId: pid)
         }
@@ -560,7 +591,7 @@ final class HealthDataUploader {
     }
 
     func uploadHourlyBgURoc(_ data: [(HourlyBgURoc, String?)]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs: [BGURocHourlyRecord] = data.map { (e, pid) in
             BGURocHourlyRecord(start: e.startDate, end: e.endDate, uRoc: e.uRoc, expectedEndBg: e.expectedEndBg, therapyProfileId: pid)
         }
@@ -569,7 +600,7 @@ final class HealthDataUploader {
 
     // ---- HR ----
     func uploadHourlyHeartRateData(_ data: [Date: (HourlyHeartRateData, String?)]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs: [HRHourlyRecord] = data.values.map { (entry, pid) in
             HRHourlyRecord(hour: entry.hour, heartRate: entry.heartRate, therapyProfileId: pid)
         }
@@ -577,14 +608,14 @@ final class HealthDataUploader {
     }
 
     func uploadDailyAverageHeartRateData(_ data: [DailyAverageHeartRateData]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs = data.map { HRDailyAverageRecord(date: $0.date, averageHeartRate: $0.averageHeartRate) }
         up.upsert(recs, label: "hr daily avg")
     }
 
     // ---- Exercise ----
     func uploadHourlyExerciseData(_ data: [Date: (HourlyExerciseData, String?)]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs: [ExerciseHourlyRecord] = data.values.map { (e, pid) in
             ExerciseHourlyRecord(hour: e.hour, moveMinutes: e.moveMinutes, exerciseMinutes: e.exerciseMinutes, totalMinutes: e.totalMinutes, therapyProfileId: pid)
         }
@@ -592,7 +623,7 @@ final class HealthDataUploader {
     }
 
     func uploadDailyAverageExerciseData(_ data: [Date: DailyAverageExerciseData]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs = data.values.map {
             ExerciseDailyAverageRecord(date: $0.date, averageMoveMinutes: $0.averageMoveMinutes, averageExerciseMinutes: $0.averageExerciseMinutes, averageTotalMinutes: $0.averageTotalMinutes)
         }
@@ -601,14 +632,14 @@ final class HealthDataUploader {
 
     // ---- Menstrual ----
     func uploadMenstrualData(_ data: [Date: DailyMenstrualData]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs = data.values.map { MenstrualDailyRecord(date: $0.date, daysSincePeriodStart: $0.daysSincePeriodStart) }
         up.upsert(recs, label: "menstrual daily")
     }
 
     // ---- Body mass ----
     func uploadBodyMassData(_ data: [(HourlyBodyMassData, String?)]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs: [BodyMassHourlyRecord] = data.map { (e, pid) in
             BodyMassHourlyRecord(hour: e.hour, weight: e.weight, therapyProfileId: pid)
         }
@@ -617,14 +648,14 @@ final class HealthDataUploader {
 
     // ---- Resting HR ----
     func uploadRestingHeartRateData(_ data: [DailyRestingHeartRateData]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs = data.map { RestingHRDailyRecord(date: $0.date, restingHeartRate: $0.restingHeartRate) }
         up.upsert(recs, label: "resting hr daily")
     }
 
     // ---- Sleep ----
     func uploadSleepDurations(_ data: [Date: DailySleepDurations]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs = data.values.map {
             SleepDailyRecord(date: $0.date, awake: $0.awake, asleepCore: $0.asleepCore, asleepDeep: $0.asleepDeep, asleepREM: $0.asleepREM, asleepUnspecified: $0.asleepUnspecified)
         }
@@ -633,7 +664,7 @@ final class HealthDataUploader {
 
     // ---- Energy ----
     func uploadHourlyEnergyData(_ data: [Date: (HourlyEnergyData, String?)]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs: [EnergyHourlyRecord] = data.values.map { (e, pid) in
             EnergyHourlyRecord(hour: e.hour, basalEnergy: e.basalEnergy, activeEnergy: e.activeEnergy, totalEnergy: e.totalEnergy, therapyProfileId: pid)
         }
@@ -641,14 +672,14 @@ final class HealthDataUploader {
     }
 
     func uploadDailyAverageEnergyData(_ data: [DailyAverageEnergyData]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs = data.map { EnergyDailyAverageRecord(date: $0.date, averageActiveEnergy: $0.averageActiveEnergy) }
         up.upsert(recs, label: "energy daily avg")
     }
 
     // ---- Therapy settings (hourly) ----
     func uploadTherapySettingsByHour(_ hours: [TherapyHour]) {
-        guard !skipWrites, let up = uploader else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs: [TherapySettingsHourlyRecord] = hours.map { h in
             TherapySettingsHourlyRecord(
                 hourStartUtc: h.hourStartUtc,
@@ -673,7 +704,7 @@ extension HealthDataUploader {
     func recordSiteChange(location: String,
                           localTz: TimeZone = .current,
                           backfillDays: Int = 14) {
-        guard !skipWrites, let up = FirestoreStreamUploader() else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
 
         // 1) Event (UUID doc id; serverTimestamp for authoritative time)
         let ev = SiteChangeEventRecord(
@@ -698,7 +729,7 @@ extension HealthDataUploader {
 
 extension HealthDataUploader {
     func upsertDailySiteStatus(_ days: [(date: Date, daysSince: Int, location: String)]) {
-        guard let up = FirestoreStreamUploader() else { return }
+        guard !skipWrites, let up = currentUploader() else { return }
         let recs = days.map { SiteChangeDailyRecord(date: $0.date, daysSince: $0.daysSince, location: $0.location) }
         up.upsert(recs, label: "site daily status")
     }

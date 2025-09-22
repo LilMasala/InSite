@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import FirebaseAuth
 
 
 struct SiteChangeEvent: Codable {
@@ -21,60 +22,121 @@ class SiteChangeData: ObservableObject {
     @Published var daysSinceSiteChange: Int = 0
     @Published var siteChangeLocation: String = "Not selected"
 
-    private let lastUpdateKey = "LastSiteChangeUpdateDate"
-    private var lastUpdateDate: Date? {
-        get {
-            UserDefaults.standard.object(forKey: lastUpdateKey) as? Date
-        }
-        set {
-            UserDefaults.standard.set(newValue, forKey: lastUpdateKey)
-        }
+    private enum DefaultsKey {
+        static let lastUpdate = "LastSiteChangeUpdateDate"
+        static let lastChangeDate = "LastSiteChangeDate"
+        static let lastLocation = "LastSiteChangeLocation"
     }
+
+    private var authListener: AuthStateDidChangeListenerHandle?
 
     private init() {
-        updateDaysSinceSiteChange()
+        refreshState(for: Auth.auth().currentUser?.uid)
+        authListener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            self?.refreshState(for: user?.uid)
+        }
     }
 
-//    func updateDaysSinceSiteChange() {
-//        let currentDate = Date()
-//        guard let lastUpdate = lastUpdateDate else {
-//            // If never updated, set current date as the last update date
-//            lastUpdateDate = currentDate
-//            return
-//        }
-//
-//        let calendar = Calendar.current
-//        let daysPassed = calendar.dateComponents([.day], from: lastUpdate, to: currentDate).day ?? 0
-//
-//        if daysPassed > 0 {
-//            daysSinceSiteChange += daysPassed
-//            lastUpdateDate = currentDate
-//        }
-//    }
-}
+    deinit {
+        if let handle = authListener {
+            Auth.auth().removeStateDidChangeListener(handle)
+        }
+    }
 
+    private func key(for base: String, uid: String? = Auth.auth().currentUser?.uid) -> String {
+        guard let uid = uid, !uid.isEmpty else { return base }
+        return "\(base)_\(uid)"
+    }
 
+    private func storedDate(for base: String, uid: String? = Auth.auth().currentUser?.uid) -> Date? {
+        UserDefaults.standard.object(forKey: key(for: base, uid: uid)) as? Date
+    }
 
-extension SiteChangeData {
-    private var lastChangeDateKey: String { "LastSiteChangeDate" }
-    private var lastLocationKey: String { "LastSiteChangeLocation" }
+    private func setStoredDate(_ date: Date?, for base: String, uid: String? = Auth.auth().currentUser?.uid) {
+        let defaults = UserDefaults.standard
+        let key = self.key(for: base, uid: uid)
+        if let date {
+            defaults.set(date, forKey: key)
+        } else {
+            defaults.removeObject(forKey: key)
+        }
+    }
 
-    var lastChangeDate: Date? {
-        get { UserDefaults.standard.object(forKey: lastChangeDateKey) as? Date }
-        set { UserDefaults.standard.set(newValue, forKey: lastChangeDateKey) }
+    private func storedLocation(uid: String? = Auth.auth().currentUser?.uid) -> String? {
+        UserDefaults.standard.string(forKey: key(for: DefaultsKey.lastLocation, uid: uid))
+    }
+
+    private func setStoredLocation(_ location: String?, uid: String? = Auth.auth().currentUser?.uid) {
+        let defaults = UserDefaults.standard
+        let key = self.key(for: DefaultsKey.lastLocation, uid: uid)
+        if let location, !location.isEmpty {
+            defaults.set(location, forKey: key)
+        } else {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    private var lastUpdateDate: Date? {
+        get { storedDate(for: DefaultsKey.lastUpdate) }
+        set { setStoredDate(newValue, for: DefaultsKey.lastUpdate) }
+    }
+
+    private func lastChangeDate(for uid: String? = Auth.auth().currentUser?.uid) -> Date? {
+        storedDate(for: DefaultsKey.lastChangeDate, uid: uid)
+    }
+
+    private var lastChangeDate: Date? {
+        get { lastChangeDate(for: Auth.auth().currentUser?.uid) }
+        set { setStoredDate(newValue, for: DefaultsKey.lastChangeDate) }
+    }
+
+    func refreshState(for uid: String? = Auth.auth().currentUser?.uid) {
+        let location = storedLocation(uid: uid) ?? "Not selected"
+        let last = lastChangeDate(for: uid)
+        let days = Self.daysSinceChange(from: last)
+        DispatchQueue.main.async {
+            self.siteChangeLocation = location
+            self.daysSinceSiteChange = days
+        }
     }
 
     func setSiteChange(location: String) {
-        self.siteChangeLocation = location
-        self.daysSinceSiteChange = 0
-        self.lastChangeDate = Date()
+        siteChangeLocation = location
+        daysSinceSiteChange = 0
+        lastChangeDate = Date()
+        setStoredLocation(location)
     }
 
     func updateDaysSinceSiteChange() {
-        // compute from lastChangeDate -> today, no incremental drift
-        guard let last = lastChangeDate else { return }
-        let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: last),
-                                                   to: Calendar.current.startOfDay(for: Date())).day ?? 0
-        self.daysSinceSiteChange = max(0, days)
+        let days = Self.daysSinceChange(from: lastChangeDate)
+        DispatchQueue.main.async {
+            self.daysSinceSiteChange = days
+        }
+    }
+
+    func clearData(for uid: String?) {
+        let defaults = UserDefaults.standard
+        let keys = [
+            key(for: DefaultsKey.lastUpdate, uid: uid),
+            key(for: DefaultsKey.lastChangeDate, uid: uid),
+            key(for: DefaultsKey.lastLocation, uid: uid)
+        ]
+        keys.forEach { defaults.removeObject(forKey: $0) }
+
+        if uid == Auth.auth().currentUser?.uid || Auth.auth().currentUser == nil {
+            DispatchQueue.main.async {
+                self.siteChangeLocation = "Not selected"
+                self.daysSinceSiteChange = 0
+            }
+        }
+    }
+
+    private static func daysSinceChange(from last: Date?) -> Int {
+        guard let last else { return 0 }
+        let calendar = Calendar.current
+        let startLast = calendar.startOfDay(for: last)
+        let startToday = calendar.startOfDay(for: Date())
+        let delta = calendar.dateComponents([.day], from: startLast, to: startToday).day ?? 0
+        return max(0, delta)
     }
 }
