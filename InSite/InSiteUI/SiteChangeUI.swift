@@ -141,7 +141,7 @@ struct SiteChangeUI: View {
                             .padding(geometry.size.height * 0.015)
                             .background(RoundedRectangle(cornerRadius: geometry.size.height * 0.02).fill(customcolor).shadow(radius: geometry.size.height * 0.02))
                             .foregroundColor(textColor)
-                        Text("Days Until Change: \(3 - self.sharedData.daysSinceSiteChange)")
+                        Text("Days Until Change: \(max(0, 3 - self.sharedData.daysSinceSiteChange))")
                             .font(.body)
                             .padding(geometry.size.height * 0.02)
                             .background(RoundedRectangle(cornerRadius: geometry.size.height * 0.02).fill(customcolor).shadow(radius: geometry.size.height * 0.02))
@@ -161,10 +161,16 @@ struct SiteChangeUI: View {
                     title: Text("Change Site"),
                     message: Text("Are you sure you want to change site to \(tempSiteChangeLocation ?? "")?"),
                     primaryButton: .default(Text("Yes")) {
-                        self.sharedData.siteChangeLocation = self.tempSiteChangeLocation ?? "Not selected"
-                        self.sharedData.daysSinceSiteChange = 0 // Set the days as per your logic
+                        let loc = self.tempSiteChangeLocation ?? "Not selected"
+
+                        // Update local UI immediately
+                        self.sharedData.setSiteChange(location: loc)
+
+                        // Event + seed today + backfill (race-free)
+                        HealthDataUploader().recordSiteChange(location: loc, localTz: .current, backfillDays: 14)
                     },
                     secondaryButton: .cancel()
+
             )
         }
             }

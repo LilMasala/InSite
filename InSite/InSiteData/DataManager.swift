@@ -1,4 +1,6 @@
 import Foundation
+import Firebase
+import FirebaseAuth
 import HealthKit
 
 // Coordinator between HealthKit fetching and Firebase uploading
@@ -393,5 +395,57 @@ class DataManager {
         r.startHour <= r.endHour
             ? (r.endHour - r.startHour + 1)
             : (24 - r.startHour + r.endHour + 1)
+    }
+}
+
+extension DataManager {
+    func backfillSiteChangeDaily(from startDate: Date, to endDate: Date, tz: TimeZone = .current) {
+        Task {
+            guard let uid = Auth.auth().currentUser?.uid else { return }
+            let eventsRef = Firestore.firestore()
+                .collection("users").document(uid)
+                .collection("site_changes").document("events")
+                .collection("items")
+
+            // Latest event up to now
+            let snapshot = try? await eventsRef
+                .order(by: "timestamp", descending: true)
+                .limit(to: 1)
+                .getDocuments()
+
+            guard let doc = snapshot?.documents.first else {
+                print("No site-change events found; skipping daily backfill.")
+                return
+            }
+
+            let data = doc.data()
+            // Prefer 'timestamp' but fall back to 'createdAt' to avoid races.
+            let ts = (data["timestamp"] as? Timestamp)?.dateValue()
+                  ?? (data["createdAt"] as? Timestamp)?.dateValue()
+            guard let eventDate = ts, let location = data["location"] as? String else {
+                print("Latest site-change doc missing fields; skipping daily backfill.")
+                return
+            }
+
+            var cal = Calendar(identifier: .gregorian)
+            cal.timeZone = tz
+
+            let dayStart = cal.startOfDay(for: max(startDate, eventDate))
+            let today    = cal.startOfDay(for: endDate)
+
+            var rows: [(Date, Int, String)] = []
+            var cur = dayStart
+            while cur <= today {
+                let days = cal.dateComponents([.day],
+                                              from: cal.startOfDay(for: eventDate),
+                                              to: cur).day ?? 0
+                rows.append((cur, max(0, days), location))
+                cur = cal.date(byAdding: .day, value: 1, to: cur)!
+            }
+
+            HealthDataUploader().upsertDailySiteStatus(
+                rows.map { (date: $0.0, daysSince: $0.1, location: $0.2) }
+            )
+        }
     }
 }

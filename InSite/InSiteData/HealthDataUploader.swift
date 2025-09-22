@@ -1,7 +1,79 @@
+//
+//  HealthDataUploader.swift
+//  InSite
+//
+
 import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 
+// MARK: - Canonical cadences & kinds
+
+enum Cadence: String { case hourly, daily, event }
+
+enum DataKind: String {
+    case bloodGlucose        = "blood_glucose"
+    case heartRate           = "heart_rate"
+    case energy              = "energy"
+    case exercise            = "exercise"
+    case sleep               = "sleep"
+    case bodyMass            = "body_mass"
+    case restingHeartRate    = "resting_heart_rate"
+    case therapySettings     = "therapy_settings"
+    case menstrual           = "menstrual"
+    case siteChanges         = "site_changes"
+
+    /// Default subpath per cadence (collections are always .../<subpath>/items)
+    func defaultSubpath(for cadence: Cadence) -> String {
+        switch (self, cadence) {
+        case (.bloodGlucose, .hourly):      return "hourly"
+        case (.bloodGlucose, .daily):       return "daily"
+        case (.heartRate, .hourly):         return "hourly"
+        case (.heartRate, .daily):          return "daily_average"
+        case (.energy, .hourly):            return "hourly"
+        case (.energy, .daily):             return "daily_average"
+        case (.exercise, .hourly):          return "hourly"
+        case (.exercise, .daily):           return "daily_average"
+        case (.sleep, .daily):              return "daily"
+        case (.bodyMass, .hourly):          return "hourly"
+        case (.restingHeartRate, .daily):   return "daily"
+        case (.therapySettings, .hourly):   return "hourly"
+        case (.menstrual, .daily):          return "daily"
+        case (.siteChanges, .daily):        return "daily"
+        case (.siteChanges, .event):        return "events"
+        default:                             return cadence.rawValue
+        }
+    }
+}
+
+// MARK: - Time helpers (UTC)
+
+private let isoHour: ISO8601DateFormatter = {
+    let f = ISO8601DateFormatter()
+    f.timeZone = TimeZone(secondsFromGMT: 0)
+    f.formatOptions = [.withInternetDateTime] // no fractional seconds, stable doc IDs
+    return f
+}()
+
+private let isoDay: ISO8601DateFormatter = {
+    let f = ISO8601DateFormatter()
+    f.timeZone = TimeZone(secondsFromGMT: 0)
+    f.formatOptions = [.withFullDate]
+    return f
+}()
+
+private func floorToHourUTC(_ d: Date) -> Date {
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = TimeZone(secondsFromGMT: 0)!
+    let c = cal.dateComponents([.year,.month,.day,.hour], from: d)
+    return cal.date(from: c)!
+}
+
+func isoHourId(_ date: Date) -> String { isoHour.string(from: floorToHourUTC(date)) }
+func isoDayId(_ date: Date)  -> String { isoDay.string(from: date) }
+func uuidDocId()             -> String { UUID().uuidString }
+
+// MARK: - TherapyHour (unchanged shape)
 
 struct TherapyHour {
     let hourStartUtc: Date
@@ -16,290 +88,618 @@ struct TherapyHour {
     let localHour: Int?
 }
 
+// MARK: - StreamRecord protocol (tiny mappers implement this)
 
+protocol StreamRecord {
+    static var kind: DataKind { get }
+    static var cadence: Cadence { get }
+    /// Override the subpath under the kind (e.g., "percent", "uROC", "average"). Default is kind.defaultSubpath.
+    static var subpathOverride: String? { get }
 
-class HealthDataUploader {
-    private let isoFormatter: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
+    var documentId: String { get }         // deterministic ID (UTC hour/day) or UUID for events
+    var payload: [String: Any] { get }     // merge-safe body (no giant blobs)
+}
 
-    var skipWrites: Bool = false
-   
-    private func isoString(from date: Date) -> String { isoFormatter.string(from: date) }
+extension StreamRecord {
+    static var subpathOverride: String? { nil }
+}
 
-    private func userCollection(_ name: String) -> CollectionReference? {
-        guard !skipWrites, let uid = Auth.auth().currentUser?.uid else { return nil }
-        return Firestore.firestore().collection("users").document(uid).collection(name)
+// MARK: - Generic, idempotent uploader
+
+final class FirestoreStreamUploader {
+    private let db = Firestore.firestore()
+    private let uid: String
+    private let batchSize = 450
+
+    init?(uid: String? = Auth.auth().currentUser?.uid) {
+        guard let uid = uid else { return nil }
+        self.uid = uid
     }
 
-    private func commit(_ batch: WriteBatch, label: String) {
-        batch.commit { error in
-            if let error = error { print("\(label) upload error: \(error)") }
-        }
+    private func itemsCollection<R: StreamRecord>(_: R.Type) -> CollectionReference {
+        let sub = R.subpathOverride ?? R.kind.defaultSubpath(for: R.cadence)
+        return db.collection("users")
+                 .document(uid)
+                 .collection(R.kind.rawValue)
+                 .document(sub)
+                 .collection("items")
     }
 
-    func uploadHourlyBgData(_ data: [(HourlyBgData, String?)]) {
-        guard let collection = userCollection("blood_glucose") else { return }
-        let batch = Firestore.firestore().batch()
-        for (entry, profileId) in data {
-            var dict: [String: Any] = [
-                "startDate": isoString(from: entry.startDate),
-                "endDate": isoString(from: entry.endDate),
-                "type": "hourly"
-            ]
-            if let start = entry.startBg { dict["startBg"] = start }
-            if let end = entry.endBg { dict["endBg"] = end }
-            if let profileId = profileId { dict["therapyProfileId"] = profileId }
-            batch.setData(dict, forDocument: collection.document("hourly-\(isoString(from: entry.startDate))"))
-        }
-        commit(batch, label: "hourly BG")
-    }
+    /// Upsert records (merge) in chunks; replay-safe if documentId is stable.
+    func upsert<R: StreamRecord>(_ records: [R], label: String) {
+        guard !records.isEmpty else { return }
+        let col = itemsCollection(R.self)
 
-    func uploadAverageBgData(_ data: [(HourlyAvgBgData, String?)]) {
-        guard let collection = userCollection("blood_glucose") else { return }
-        let batch = Firestore.firestore().batch()
-        for (entry, profileId) in data {
-            var dict: [String: Any] = [
-                "startDate": isoString(from: entry.startDate),
-                "endDate": isoString(from: entry.endDate),
-                "type": "average"
-            ]
-            if let avg = entry.averageBg { dict["averageBg"] = avg }
-            if let profileId = profileId { dict["therapyProfileId"] = profileId }
-            batch.setData(dict, forDocument: collection.document("average-\(isoString(from: entry.startDate))"))
-        }
-        commit(batch, label: "avg BG")
-    }
+        var buf: [R] = []
+        buf.reserveCapacity(batchSize)
 
-    func uploadHourlyBgPercentages(_ data: [(HourlyBgPercentages, String?)]) {
-        guard let collection = userCollection("blood_glucose") else { return }
-        let batch = Firestore.firestore().batch()
-        for (entry, profileId) in data {
-            var dict: [String: Any] = [
-                "startDate": isoString(from: entry.startDate),
-                "endDate": isoString(from: entry.endDate),
-                "percentLow": entry.percentLow,
-                "percentHigh": entry.percentHigh,
-                "type": "percent"
-            ]
-            if let profileId = profileId { dict["therapyProfileId"] = profileId }
-            batch.setData(dict, forDocument: collection.document("percent-\(isoString(from: entry.startDate))"))
+        func flush(_ xs: [R]) {
+            guard !xs.isEmpty else { return }
+            let batch = db.batch()
+            for r in xs {
+                batch.setData(r.payload, forDocument: col.document(r.documentId), merge: true)
+            }
+            batch.commit { err in
+                if let err = err {
+                    print("[\(label)] commit error:", err)
+                }
+            }
         }
-        commit(batch, label: "bg percent")
-    }
 
-    func uploadHourlyHeartRateData(_ data: [Date: (HourlyHeartRateData, String?)]) {
-        guard let collection = userCollection("heart_rate") else { return }
-        let batch = Firestore.firestore().batch()
-        for (date, tuple) in data {
-            let (entry, profileId) = tuple
-            var dict: [String: Any] = [
-                "hour": isoString(from: entry.hour),
-                "heartRate": entry.heartRate,
-                "type": "hourly"
-            ]
-            if let profileId = profileId { dict["therapyProfileId"] = profileId }
-            batch.setData(dict, forDocument: collection.document("hourly-\(isoString(from: date))"))
+        for r in records {
+            buf.append(r)
+            if buf.count == batchSize {
+                flush(buf)
+                buf.removeAll(keepingCapacity: true)
+            }
         }
-        commit(batch, label: "hourly HR")
-    }
-
-    func uploadDailyAverageHeartRateData(_ data: [DailyAverageHeartRateData]) {
-        guard let collection = userCollection("heart_rate") else { return }
-        let batch = Firestore.firestore().batch()
-        for entry in data {
-            let dict: [String: Any] = [
-                "date": isoString(from: entry.date),
-                "averageHeartRate": entry.averageHeartRate,
-                "type": "daily_average"
-            ]
-            batch.setData(dict, forDocument: collection.document("average-\(isoString(from: entry.date))"))
-        }
-        commit(batch, label: "avg HR")
-    }
-
-    func uploadHourlyExerciseData(_ data: [Date: (HourlyExerciseData, String?)]) {
-        guard let collection = userCollection("exercise") else { return }
-        let batch = Firestore.firestore().batch()
-        for (date, tuple) in data {
-            let (entry, profileId) = tuple
-            var dict: [String: Any] = [
-                "hour": isoString(from: entry.hour),
-                "moveMinutes": entry.moveMinutes,
-                "exerciseMinutes": entry.exerciseMinutes,
-                "totalMinutes": entry.totalMinutes,
-                "type": "hourly"
-            ]
-            if let profileId = profileId { dict["therapyProfileId"] = profileId }
-            batch.setData(dict, forDocument: collection.document("hourly-\(isoString(from: date))"))
-        }
-        commit(batch, label: "hourly exercise")
-    }
-
-    func uploadDailyAverageExerciseData(_ data: [Date: DailyAverageExerciseData]) {
-        guard let collection = userCollection("exercise") else { return }
-        let batch = Firestore.firestore().batch()
-        for (date, entry) in data {
-            let dict: [String: Any] = [
-                "date": isoString(from: entry.date),
-                "averageMoveMinutes": entry.averageMoveMinutes,
-                "averageExerciseMinutes": entry.averageExerciseMinutes,
-                "averageTotalMinutes": entry.averageTotalMinutes,
-                "type": "daily_average"
-            ]
-            batch.setData(dict, forDocument: collection.document("average-\(isoString(from: date))"))
-        }
-        commit(batch, label: "avg exercise")
-    }
-
-    func uploadMenstrualData(_ data: [Date: DailyMenstrualData]) {
-        guard let collection = userCollection("menstrual") else { return }
-        let batch = Firestore.firestore().batch()
-        for (date, entry) in data {
-            let dict: [String: Any] = [
-                "date": isoString(from: entry.date),
-                "daysSincePeriodStart": entry.daysSincePeriodStart
-            ]
-            batch.setData(dict, forDocument: collection.document(isoString(from: date)))
-        }
-        commit(batch, label: "menstrual")
-    }
-    
-    // in HealthDataUploader
-    func uploadHourlyBgURoc(_ data: [(HourlyBgURoc, String?)]) {
-        guard let collection = userCollection("blood_glucose") else { return }
-        let batch = Firestore.firestore().batch()
-        for (entry, profileId) in data {
-            var dict: [String: Any] = [
-                "startDate": isoString(from: entry.startDate),
-                "endDate": isoString(from: entry.endDate),
-                "type": "uROC"
-            ]
-            if let u = entry.uRoc { dict["uRoc"] = u }                   // mg/dL per sec
-            if let e = entry.expectedEndBg { dict["expectedEndBg"] = e } // optional
-            if let profileId = profileId { dict["therapyProfileId"] = profileId }
-            batch.setData(dict, forDocument: collection.document("uroc-\(isoString(from: entry.startDate))"))
-        }
-        commit(batch, label: "uROC")
-    }
-
-
-    func uploadBodyMassData(_ data: [(HourlyBodyMassData, String?)]) {
-        guard let collection = userCollection("body_mass") else { return }
-        let batch = Firestore.firestore().batch()
-        for (entry, profileId) in data {
-            var dict: [String: Any] = [
-                "hour": isoString(from: entry.hour),
-                "weight": entry.weight
-            ]
-            if let profileId = profileId { dict["therapyProfileId"] = profileId }
-            batch.setData(dict, forDocument: collection.document(isoString(from: entry.hour)))
-        }
-        commit(batch, label: "body mass")
-    }
-
-    func uploadRestingHeartRateData(_ data: [DailyRestingHeartRateData]) {
-        guard let collection = userCollection("resting_heart_rate") else { return }
-        let batch = Firestore.firestore().batch()
-        for entry in data {
-            let dict: [String: Any] = [
-                "date": isoString(from: entry.date),
-                "restingHeartRate": entry.restingHeartRate
-            ]
-            batch.setData(dict, forDocument: collection.document(isoString(from: entry.date)))
-        }
-        commit(batch, label: "resting HR")
-    }
-
-    func uploadSleepDurations(_ data: [Date: DailySleepDurations]) {
-        guard let collection = userCollection("sleep") else { return }
-        let batch = Firestore.firestore().batch()
-        for (date, entry) in data {
-            let dict: [String: Any] = [
-                "date": isoString(from: entry.date),
-                "awake": entry.awake,
-                "asleepCore": entry.asleepCore,
-                "asleepDeep": entry.asleepDeep,
-                "asleepREM": entry.asleepREM,
-                "asleepUnspecified": entry.asleepUnspecified
-            ]
-            batch.setData(dict, forDocument: collection.document(isoString(from: date)))
-        }
-        commit(batch, label: "sleep")
-    }
-
-    func uploadHourlyEnergyData(_ data: [Date: (HourlyEnergyData, String?)]) {
-        guard let collection = userCollection("energy") else { return }
-        let batch = Firestore.firestore().batch()
-        for (date, tuple) in data {
-            let (entry, profileId) = tuple
-            var dict: [String: Any] = [
-                "hour": isoString(from: entry.hour),
-                "basalEnergy": entry.basalEnergy,
-                "activeEnergy": entry.activeEnergy,
-                "totalEnergy": entry.totalEnergy,
-                "type": "hourly"
-            ]
-            if let profileId = profileId { dict["therapyProfileId"] = profileId }
-            batch.setData(dict, forDocument: collection.document("hourly-\(isoString(from: date))"))
-        }
-        commit(batch, label: "energy")
-    }
-
-    func uploadDailyAverageEnergyData(_ data: [DailyAverageEnergyData]) {
-        guard let collection = userCollection("energy") else { return }
-        let batch = Firestore.firestore().batch()
-        for entry in data {
-            let dict: [String: Any] = [
-                "date": isoString(from: entry.date),
-                "averageActiveEnergy": entry.averageActiveEnergy,
-                "type": "daily_average"
-            ]
-            batch.setData(dict, forDocument: collection.document("average-\(isoString(from: entry.date))"))
-        }
-        commit(batch, label: "avg energy")
+        flush(buf)
     }
 }
 
+// MARK: - Mappers (1 small struct per logical stream)
+
+// --- Blood Glucose (hourly raw) ---
+struct BGHourlyRecord: StreamRecord {
+    static let kind: DataKind = .bloodGlucose
+    static let cadence: Cadence = .hourly
+
+    let start: Date
+    let end: Date
+    let startBg: Double?
+    let endBg: Double?
+    let therapyProfileId: String?
+
+    var documentId: String { isoHourId(start) }
+    var payload: [String: Any] {
+        var d: [String: Any] = [
+            "startUtc": isoHourId(start),
+            "endUtc": isoHour.string(from: end)
+        ]
+        if let v = startBg { d["startBg"] = v }
+        if let v = endBg   { d["endBg"]   = v }
+        if let p = therapyProfileId { d["therapyProfileId"] = p }
+        return d
+    }
+}
+
+// --- Blood Glucose (hourly average) ---
+struct BGAverageHourlyRecord: StreamRecord {
+    static let kind: DataKind = .bloodGlucose
+    static let cadence: Cadence = .hourly
+    static let subpathOverride: String? = "average"   // goes to blood_glucose/average/items
+
+    let start: Date
+    let end: Date
+    let averageBg: Double?
+    let therapyProfileId: String?
+
+    var documentId: String { isoHourId(start) }
+    var payload: [String: Any] {
+        var d: [String: Any] = [
+            "startUtc": isoHourId(start),
+            "endUtc": isoHour.string(from: end)
+        ]
+        if let v = averageBg { d["averageBg"] = v }
+        if let p = therapyProfileId { d["therapyProfileId"] = p }
+        return d
+    }
+}
+
+// --- Blood Glucose (hourly %low/%high) ---
+struct BGPercentHourlyRecord: StreamRecord {
+    static let kind: DataKind = .bloodGlucose
+    static let cadence: Cadence = .hourly
+    static let subpathOverride: String? = "percent"
+
+    let start: Date
+    let end: Date
+    let percentLow: Double
+    let percentHigh: Double
+    let therapyProfileId: String?
+
+    var documentId: String { isoHourId(start) }
+    var payload: [String: Any] {
+        var d: [String: Any] = [
+            "startUtc": isoHourId(start),
+            "endUtc": isoHour.string(from: end),
+            "percentLow": percentLow,
+            "percentHigh": percentHigh
+        ]
+        if let p = therapyProfileId { d["therapyProfileId"] = p }
+        return d
+    }
+}
+
+// --- Blood Glucose (hourly uROC) ---
+struct BGURocHourlyRecord: StreamRecord {
+    static let kind: DataKind = .bloodGlucose
+    static let cadence: Cadence = .hourly
+    static let subpathOverride: String? = "uROC"
+
+    let start: Date
+    let end: Date
+    let uRoc: Double?              // mg/dL per sec
+    let expectedEndBg: Double?
+    let therapyProfileId: String?
+
+    var documentId: String { isoHourId(start) }
+    var payload: [String: Any] {
+        var d: [String: Any] = [
+            "startUtc": isoHourId(start),
+            "endUtc": isoHour.string(from: end)
+        ]
+        if let u = uRoc           { d["uRoc"] = u }
+        if let e = expectedEndBg  { d["expectedEndBg"] = e }
+        if let p = therapyProfileId { d["therapyProfileId"] = p }
+        return d
+    }
+}
+
+// --- Heart Rate ---
+struct HRHourlyRecord: StreamRecord {
+    static let kind: DataKind = .heartRate
+    static let cadence: Cadence = .hourly
+
+    let hour: Date
+    let heartRate: Double
+    let therapyProfileId: String?
+
+    var documentId: String { isoHourId(hour) }
+    var payload: [String: Any] {
+        var d: [String: Any] = [
+            "hourUtc": isoHourId(hour),
+            "heartRate": heartRate
+        ]
+        if let p = therapyProfileId { d["therapyProfileId"] = p }
+        return d
+    }
+}
+
+struct HRDailyAverageRecord: StreamRecord {
+    static let kind: DataKind = .heartRate
+    static let cadence: Cadence = .daily   // goes to heart_rate/daily_average/items
+
+    let date: Date
+    let averageHeartRate: Double
+
+    var documentId: String { isoDayId(date) }
+    var payload: [String: Any] {
+        [
+            "dateUtc": isoDayId(date),
+            "averageHeartRate": averageHeartRate
+        ]
+    }
+}
+
+// --- Exercise ---
+struct ExerciseHourlyRecord: StreamRecord {
+    static let kind: DataKind = .exercise
+    static let cadence: Cadence = .hourly
+
+    let hour: Date
+    let moveMinutes: Double
+    let exerciseMinutes: Double
+    let totalMinutes: Double
+    let therapyProfileId: String?
+
+    var documentId: String { isoHourId(hour) }
+    var payload: [String: Any] {
+        var d: [String: Any] = [
+            "hourUtc": isoHourId(hour),
+            "moveMinutes": moveMinutes,
+            "exerciseMinutes": exerciseMinutes,
+            "totalMinutes": totalMinutes
+        ]
+        if let p = therapyProfileId { d["therapyProfileId"] = p }
+        return d
+    }
+}
+
+struct ExerciseDailyAverageRecord: StreamRecord {
+    static let kind: DataKind = .exercise
+    static let cadence: Cadence = .daily  // exercise/daily_average/items
+
+    let date: Date
+    let averageMoveMinutes: Double
+    let averageExerciseMinutes: Double
+    let averageTotalMinutes: Double
+
+    var documentId: String { isoDayId(date) }
+    var payload: [String: Any] {
+        [
+            "dateUtc": isoDayId(date),
+            "averageMoveMinutes": averageMoveMinutes,
+            "averageExerciseMinutes": averageExerciseMinutes,
+            "averageTotalMinutes": averageTotalMinutes
+        ]
+    }
+}
+
+// --- Menstrual ---
+struct MenstrualDailyRecord: StreamRecord {
+    static let kind: DataKind = .menstrual
+    static let cadence: Cadence = .daily
+
+    let date: Date
+    let daysSincePeriodStart: Int
+
+    var documentId: String { isoDayId(date) }
+    var payload: [String: Any] {
+        [
+            "dateUtc": isoDayId(date),
+            "daysSincePeriodStart": daysSincePeriodStart
+        ]
+    }
+}
+
+// --- Body Mass ---
+struct BodyMassHourlyRecord: StreamRecord {
+    static let kind: DataKind = .bodyMass
+    static let cadence: Cadence = .hourly
+
+    let hour: Date
+    let weight: Double
+    let therapyProfileId: String?
+
+    var documentId: String { isoHourId(hour) }
+    var payload: [String: Any] {
+        var d: [String: Any] = [
+            "hourUtc": isoHourId(hour),
+            "weight": weight
+        ]
+        if let p = therapyProfileId { d["therapyProfileId"] = p }
+        return d
+    }
+}
+
+// --- Resting HR ---
+struct RestingHRDailyRecord: StreamRecord {
+    static let kind: DataKind = .restingHeartRate
+    static let cadence: Cadence = .daily
+
+    let date: Date
+    let restingHeartRate: Double
+
+    var documentId: String { isoDayId(date) }
+    var payload: [String: Any] {
+        [
+            "dateUtc": isoDayId(date),
+            "restingHeartRate": restingHeartRate
+        ]
+    }
+}
+
+// --- Sleep ---
+struct SleepDailyRecord: StreamRecord {
+    static let kind: DataKind = .sleep
+    static let cadence: Cadence = .daily
+
+    let date: Date
+    let awake: Double
+    let asleepCore: Double
+    let asleepDeep: Double
+    let asleepREM: Double
+    let asleepUnspecified: Double
+
+    var documentId: String { isoDayId(date) }
+    var payload: [String: Any] {
+        [
+            "dateUtc": isoDayId(date),
+            "awake": awake,
+            "asleepCore": asleepCore,
+            "asleepDeep": asleepDeep,
+            "asleepREM": asleepREM,
+            "asleepUnspecified": asleepUnspecified
+        ]
+    }
+}
+
+// --- Energy ---
+struct EnergyHourlyRecord: StreamRecord {
+    static let kind: DataKind = .energy
+    static let cadence: Cadence = .hourly
+
+    let hour: Date
+    let basalEnergy: Double
+    let activeEnergy: Double
+    let totalEnergy: Double
+    let therapyProfileId: String?
+
+    var documentId: String { isoHourId(hour) }
+    var payload: [String: Any] {
+        var d: [String: Any] = [
+            "hourUtc": isoHourId(hour),
+            "basalEnergy": basalEnergy,
+            "activeEnergy": activeEnergy,
+            "totalEnergy": totalEnergy
+        ]
+        if let p = therapyProfileId { d["therapyProfileId"] = p }
+        return d
+    }
+}
+
+struct EnergyDailyAverageRecord: StreamRecord {
+    static let kind: DataKind = .energy
+    static let cadence: Cadence = .daily
+
+    let date: Date
+    let averageActiveEnergy: Double
+
+    var documentId: String { isoDayId(date) }
+    var payload: [String: Any] {
+        [
+            "dateUtc": isoDayId(date),
+            "averageActiveEnergy": averageActiveEnergy
+        ]
+    }
+}
+
+// --- Therapy Settings (hourly projection of snapshot to UTC hour) ---
+struct TherapySettingsHourlyRecord: StreamRecord {
+    static let kind: DataKind = .therapySettings
+    static let cadence: Cadence = .hourly
+
+    let hourStartUtc: Date
+    let profileId: String
+    let profileName: String
+    let snapshotTimestamp: Date
+    let carbRatio: Double
+    let basalRate: Double
+    let insulinSensitivity: Double
+    let localTzId: String?
+    let localHour: Int?
+
+    var documentId: String { isoHourId(hourStartUtc) }
+    var payload: [String: Any] {
+        var d: [String: Any] = [
+            "hourStartUtc": isoHourId(hourStartUtc),
+            "profileId": profileId,
+            "profileName": profileName,
+            "snapshotTimestamp": isoHour.string(from: snapshotTimestamp),
+            "carbRatio": carbRatio,
+            "basalRate": basalRate,
+            "insulinSensitivity": insulinSensitivity
+        ]
+        if let tz = localTzId { d["localTz"] = tz }
+        if let lh = localHour { d["localHour"] = lh }
+        return d
+    }
+}
+
+// --- Site change (event + derived daily) ---
+struct SiteChangeEventRecord: StreamRecord {
+    static let kind: DataKind = .siteChanges
+    static let cadence: Cadence = .event
+
+    let id: String       // use UUID
+    let location: String
+    let localTzId: String
+    let timestamp: Date  // client-side timestamp as hint
+
+    var documentId: String { id }
+    var payload: [String: Any] {
+        [
+            "location": location,
+            "localTz": localTzId,
+            "clientTimestamp": isoHour.string(from: timestamp),
+            "createdAt": FieldValue.serverTimestamp(),
+            "timestamp": FieldValue.serverTimestamp() // authoritative
+        ]
+    }
+}
+
+struct SiteChangeDailyRecord: StreamRecord {
+    static let kind: DataKind = .siteChanges
+    static let cadence: Cadence = .daily
+
+    let date: Date
+    let daysSince: Int
+    let location: String
+
+    var documentId: String { isoDayId(date) }
+    var payload: [String: Any] {
+        [
+            "dateUtc": isoDayId(date),
+            "daysSinceChange": daysSince,
+            "location": location,
+            "computedAt": FieldValue.serverTimestamp()
+        ]
+    }
+}
+
+// MARK: - Convenience façade (optionally keep this name for call sites)
+
+final class HealthDataUploader {
+    private let uploader = FirestoreStreamUploader()
+    var skipWrites: Bool = false
+
+    // ---- BG ----
+    func uploadHourlyBgData(_ data: [(HourlyBgData, String?)]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs: [BGHourlyRecord] = data.map { (e, pid) in
+            BGHourlyRecord(start: e.startDate, end: e.endDate, startBg: e.startBg, endBg: e.endBg, therapyProfileId: pid)
+        }
+        up.upsert(recs, label: "bg hourly")
+    }
+
+    func uploadAverageBgData(_ data: [(HourlyAvgBgData, String?)]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs: [BGAverageHourlyRecord] = data.map { (e, pid) in
+            BGAverageHourlyRecord(start: e.startDate, end: e.endDate, averageBg: e.averageBg, therapyProfileId: pid)
+        }
+        up.upsert(recs, label: "bg hourly average")
+    }
+
+    func uploadHourlyBgPercentages(_ data: [(HourlyBgPercentages, String?)]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs: [BGPercentHourlyRecord] = data.map { (e, pid) in
+            BGPercentHourlyRecord(start: e.startDate, end: e.endDate, percentLow: e.percentLow, percentHigh: e.percentHigh, therapyProfileId: pid)
+        }
+        up.upsert(recs, label: "bg hourly percent")
+    }
+
+    func uploadHourlyBgURoc(_ data: [(HourlyBgURoc, String?)]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs: [BGURocHourlyRecord] = data.map { (e, pid) in
+            BGURocHourlyRecord(start: e.startDate, end: e.endDate, uRoc: e.uRoc, expectedEndBg: e.expectedEndBg, therapyProfileId: pid)
+        }
+        up.upsert(recs, label: "bg hourly uROC")
+    }
+
+    // ---- HR ----
+    func uploadHourlyHeartRateData(_ data: [Date: (HourlyHeartRateData, String?)]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs: [HRHourlyRecord] = data.values.map { (entry, pid) in
+            HRHourlyRecord(hour: entry.hour, heartRate: entry.heartRate, therapyProfileId: pid)
+        }
+        up.upsert(recs, label: "hr hourly")
+    }
+
+    func uploadDailyAverageHeartRateData(_ data: [DailyAverageHeartRateData]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs = data.map { HRDailyAverageRecord(date: $0.date, averageHeartRate: $0.averageHeartRate) }
+        up.upsert(recs, label: "hr daily avg")
+    }
+
+    // ---- Exercise ----
+    func uploadHourlyExerciseData(_ data: [Date: (HourlyExerciseData, String?)]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs: [ExerciseHourlyRecord] = data.values.map { (e, pid) in
+            ExerciseHourlyRecord(hour: e.hour, moveMinutes: e.moveMinutes, exerciseMinutes: e.exerciseMinutes, totalMinutes: e.totalMinutes, therapyProfileId: pid)
+        }
+        up.upsert(recs, label: "exercise hourly")
+    }
+
+    func uploadDailyAverageExerciseData(_ data: [Date: DailyAverageExerciseData]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs = data.values.map {
+            ExerciseDailyAverageRecord(date: $0.date, averageMoveMinutes: $0.averageMoveMinutes, averageExerciseMinutes: $0.averageExerciseMinutes, averageTotalMinutes: $0.averageTotalMinutes)
+        }
+        up.upsert(recs, label: "exercise daily avg")
+    }
+
+    // ---- Menstrual ----
+    func uploadMenstrualData(_ data: [Date: DailyMenstrualData]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs = data.values.map { MenstrualDailyRecord(date: $0.date, daysSincePeriodStart: $0.daysSincePeriodStart) }
+        up.upsert(recs, label: "menstrual daily")
+    }
+
+    // ---- Body mass ----
+    func uploadBodyMassData(_ data: [(HourlyBodyMassData, String?)]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs: [BodyMassHourlyRecord] = data.map { (e, pid) in
+            BodyMassHourlyRecord(hour: e.hour, weight: e.weight, therapyProfileId: pid)
+        }
+        up.upsert(recs, label: "body mass hourly")
+    }
+
+    // ---- Resting HR ----
+    func uploadRestingHeartRateData(_ data: [DailyRestingHeartRateData]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs = data.map { RestingHRDailyRecord(date: $0.date, restingHeartRate: $0.restingHeartRate) }
+        up.upsert(recs, label: "resting hr daily")
+    }
+
+    // ---- Sleep ----
+    func uploadSleepDurations(_ data: [Date: DailySleepDurations]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs = data.values.map {
+            SleepDailyRecord(date: $0.date, awake: $0.awake, asleepCore: $0.asleepCore, asleepDeep: $0.asleepDeep, asleepREM: $0.asleepREM, asleepUnspecified: $0.asleepUnspecified)
+        }
+        up.upsert(recs, label: "sleep daily")
+    }
+
+    // ---- Energy ----
+    func uploadHourlyEnergyData(_ data: [Date: (HourlyEnergyData, String?)]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs: [EnergyHourlyRecord] = data.values.map { (e, pid) in
+            EnergyHourlyRecord(hour: e.hour, basalEnergy: e.basalEnergy, activeEnergy: e.activeEnergy, totalEnergy: e.totalEnergy, therapyProfileId: pid)
+        }
+        up.upsert(recs, label: "energy hourly")
+    }
+
+    func uploadDailyAverageEnergyData(_ data: [DailyAverageEnergyData]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs = data.map { EnergyDailyAverageRecord(date: $0.date, averageActiveEnergy: $0.averageActiveEnergy) }
+        up.upsert(recs, label: "energy daily avg")
+    }
+
+    // ---- Therapy settings (hourly) ----
+    func uploadTherapySettingsByHour(_ hours: [TherapyHour]) {
+        guard !skipWrites, let up = uploader else { return }
+        let recs: [TherapySettingsHourlyRecord] = hours.map { h in
+            TherapySettingsHourlyRecord(
+                hourStartUtc: h.hourStartUtc,
+                profileId: h.profileId,
+                profileName: h.profileName,
+                snapshotTimestamp: h.snapshotTimestamp,
+                carbRatio: h.carbRatio,
+                basalRate: h.basalRate,
+                insulinSensitivity: h.insulinSensitivity,
+                localTzId: h.localTz?.identifier,
+                localHour: h.localHour
+            )
+        }
+        up.upsert(recs, label: "therapy settings hourly")
+    }
+}
+
+// MARK: - Site change convenience (event write + same-tick daily seed + backfill)
 
 extension HealthDataUploader {
-    func uploadTherapySettingsByHour(_ hours: [TherapyHour]) {
-        guard let collection = userCollection("therapy_settings") else { return }
+    /// Record a site change (event), seed today's daily=0, then backfill recent days (idempotent).
+    func recordSiteChange(location: String,
+                          localTz: TimeZone = .current,
+                          backfillDays: Int = 14) {
+        guard !skipWrites, let up = FirestoreStreamUploader() else { return }
 
-        // Firestore limit: 500 operations per batch.
-        for batchHours in chunk(hours, size: 450) {
-            let batch = Firestore.firestore().batch()
-            for h in batchHours {
-                let id = isoHourDocId(h.hourStartUtc) // e.g., "2025-01-14T16:00:00Z"
-                var dict: [String: Any] = [
-                    "hourStartUtc": isoString(from: h.hourStartUtc),
-                    "profileId": h.profileId,
-                    "profileName": h.profileName,
-                    "snapshotTimestamp": isoString(from: h.snapshotTimestamp),
-                    "carbRatio": h.carbRatio,
-                    "basalRate": h.basalRate,
-                    "insulinSensitivity": h.insulinSensitivity
-                ]
-                if let tz = h.localTz {
-                    dict["localTz"] = tz.identifier
-                    if let lh = h.localHour { dict["localHour"] = lh }
-                }
-                batch.setData(dict, forDocument: collection.document(id))
-            }
-            commit(batch, label: "therapy settings by hour")
-        }
+        // 1) Event (UUID doc id; serverTimestamp for authoritative time)
+        let ev = SiteChangeEventRecord(
+            id: uuidDocId(),
+            location: location,
+            localTzId: localTz.identifier,
+            timestamp: Date()
+        )
+        up.upsert([ev], label: "site change event")
+
+        // 2) Seed today's derived daily doc for instant UX
+        let today = Date()
+        let seed = SiteChangeDailyRecord(date: today, daysSince: 0, location: location)
+        up.upsert([seed], label: "site change daily seed")
+
+        // 3) Backfill last N days with authoritative event timestamp
+        let end = today
+        let start = Calendar.current.date(byAdding: .day, value: -backfillDays, to: end) ?? end
+        DataManager.shared.backfillSiteChangeDaily(from: start, to: end, tz: localTz)
     }
+}
 
-    private func isoHourDocId(_ date: Date) -> String {
-        // Reuse your ISO formatter but force to the hour start in UTC
-        isoFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-        // If your isoFormatter includes fractional seconds, strip them, or pre-round to hour.
-        return isoString(from: date)
-    }
-
-    private func chunk<T>(_ xs: [T], size: Int) -> [[T]] {
-        stride(from: 0, to: xs.count, by: size).map { Array(xs[$0..<min($0+size, xs.count)]) }
+extension HealthDataUploader {
+    func upsertDailySiteStatus(_ days: [(date: Date, daysSince: Int, location: String)]) {
+        guard let up = FirestoreStreamUploader() else { return }
+        let recs = days.map { SiteChangeDailyRecord(date: $0.date, daysSince: $0.daysSince, location: $0.location) }
+        up.upsert(recs, label: "site daily status")
     }
 }
