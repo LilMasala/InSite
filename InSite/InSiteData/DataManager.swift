@@ -3,13 +3,36 @@ import Firebase
 import FirebaseAuth
 import HealthKit
 
-// Coordinator between HealthKit fetching and Firebase uploading
+// MARK: - ActiveProfileResolver (in-memory; no network per row)
+private struct ActiveProfileResolver {
+    struct Interval { let start: Date; let end: Date; let snap: TherapySnapshot }
+    private let intervals: [Interval]
 
-class DataManager {
+    init(snapshots: [TherapySnapshot], windowStart: Date, windowEnd: Date, baseline: TherapySnapshot?) {
+        var snaps = snapshots.sorted { $0.timestamp < $1.timestamp }
+        if let b = baseline, snaps.first?.timestamp != b.timestamp {
+            snaps.insert(b, at: 0)
+        }
+        var ivs: [Interval] = []
+        for i in 0..<snaps.count {
+            let s = max(windowStart, snaps[i].timestamp)
+            let e = (i + 1 < snaps.count) ? min(windowEnd, snaps[i+1].timestamp) : windowEnd
+            if s < e { ivs.append(.init(start: s, end: e, snap: snaps[i])) }
+        }
+        self.intervals = ivs
+    }
+
+    func profileId(at date: Date) -> String? {
+        intervals.last { date >= $0.start && date < $0.end }?.snap.profileId
+    }
+}
+
+// MARK: - DataManager
+final class DataManager {
     static let shared = DataManager()
+
     private let fetcher = HealthDataFetcher()
     private let uploader = HealthDataUploader()
-    private let dispatchGroup = DispatchGroup()
     private var authListener: AuthStateDidChangeListenerHandle?
 
     private init() {
@@ -29,346 +52,278 @@ class DataManager {
             Auth.auth().removeStateDidChangeListener(handle)
         }
     }
-    
+
+    func handleLogout(for uid: String?) { uploader.clear() }
+
     func requestAuthorization(completion: @escaping (Bool) -> Void) {
         fetcher.requestAuthorization(completion: completion)
     }
-    
+
+    // MARK: - Sync entrypoint (stops spinner after fetches + writes)
     func syncHealthData(completion: @escaping () -> Void) {
         guard let uid = Auth.auth().currentUser?.uid else {
-            print("[DataManager] No authenticated user; skipping health data sync request.")
+            print("[DataManager] No authenticated user; skipping health data sync.")
             DispatchQueue.main.async { completion() }
             return
         }
-
         uploader.refresh(for: uid)
-        let lastSyncDateKey = "LastSyncDate"
-        let startDate: Date = (UserDefaults.standard.object(forKey: lastSyncDateKey) as? Date)
-            ?? Calendar.current.date(byAdding: .month, value: -1, to: Date())!
-        let endDate = Date()
+
+        let tz = TimeZone(identifier: "America/Detroit") ?? .current
+        let lastSyncKey = "LastSyncDate"
+        let firstRunKey = "HasDoneInitialSync"
+
+        let now = Date()
+        let hasDoneInitial = UserDefaults.standard.bool(forKey: firstRunKey)
+        let defaultBackfillDays = hasDoneInitial ? -3 : -30
+        let startDate: Date = (UserDefaults.standard.object(forKey: lastSyncKey) as? Date)
+            ?? Calendar.current.date(byAdding: .day, value: defaultBackfillDays, to: now)!
+        let endDate = now
+
         
-        // Before dispatchGroup.notify(...)
-        self.backfillTherapySettingsByHour(from: startDate, to: endDate, tz: TimeZone(identifier: "America/Detroit") ?? .current)
+        // Two-phase coordination
+        let fetches = DispatchGroup()
+        let writes  = DispatchGroup()
 
-
-        // ---- Blood Glucose (uses its own internal subtasks) ----
-        dispatchGroup.enter()
-        print("Fetching BG Data")
-        let bgGroup = DispatchGroup()
-        fetcher.fetchAllBgData(start: startDate, end: endDate, group: bgGroup) { result in
-            print("BG fetch completed with result: \(result)")
-            switch result {
-            case .success(let (hourlyBgData, avgBgData, hourlyPercentages)):
-                print("BG success, hourly=\(hourlyBgData.count) avg=\(avgBgData.count) pct=\(hourlyPercentages.count)")
-                self.processHourlyBgData(hourlyBgData)
-                self.processAvgBgData(avgBgData)
-                self.processHourlyBgPercentages(hourlyPercentages)
-                let uroc = BgAnalytics.computeHourlyURoc(hourlyBgData: hourlyBgData, targetBG: 110)
-                self.processHourlyBgURoc(uroc)
-            case .failure(let error):
-                print("BG fetch error: \(error)")
-            }
-            self.dispatchGroup.leave()
-        }
-
-        // ---- Heart Rate (has internal parallelization) ----
-        dispatchGroup.enter()
-        let hrGroup = DispatchGroup()
-        fetcher.fetchHeartRateData(start: startDate, end: endDate, group: hrGroup) { result in
-            switch result {
-            case .success(let (hourlyData, dailyAverageData)):
-                self.processHourlyHeartRateData(hourlyData)
-                self.processDailyAverageHeartRateData(dailyAverageData)
-            case .failure(let error):
-                print("Heart rate fetch error: \(error)")
-            }
-            self.dispatchGroup.leave()
-        }
-
-        // ---- Exercise (has internal parallelization) ----
-        dispatchGroup.enter()
-        let exGroup = DispatchGroup()
-        fetcher.fetchExerciseData(start: startDate, end: endDate, group: exGroup) { result in
-            switch result {
-            case .success(let (hourlyData, dailyAverageData)):
-                self.processHourlyExerciseData(hourlyData)
-                self.processDailyAverageExerciseData(dailyAverageData)
-            case .failure(let error):
-                print("Exercise fetch error: \(error)")
-            }
-            self.dispatchGroup.leave()
-        }
-
-        // ---- Menstrual ----
-        dispatchGroup.enter()
-        fetcher.fetchMenstrualData(start: startDate, end: endDate) { result in
-            switch result {
-            case .success(let data):
-                self.processMenstrualData(data)
-            case .failure(let error):
-                print("Menstrual fetch error: \(error)")
-            }
-            self.dispatchGroup.leave()
-        }
-
-        // ---- Body Mass ----
-        dispatchGroup.enter()
-        fetcher.fetchBodyMassData(start: startDate, end: endDate, group: DispatchGroup()) { result in
-            switch result {
-            case .success(let data):
-                self.processBodyMassData(data)
-            case .failure(let error):
-                print("Body mass fetch error: \(error)")
-            }
-            self.dispatchGroup.leave()
-        }
-
-        // ---- Resting HR ----
-        dispatchGroup.enter()
-        fetcher.fetchRestingHeartRate(start: startDate, end: endDate) { result in
-            switch result {
-            case .success(let data):
-                self.processRestingHeartRateData(data)
-            case .failure(let error):
-                print("Resting heart rate fetch error: \(error)")
-            }
-            self.dispatchGroup.leave()
-        }
-
-        // ---- Sleep ----
-        dispatchGroup.enter()
-        fetcher.fetchSleepDurations(start: startDate, end: endDate) { result in
-            switch result {
-            case .success(let data):
-                self.processSleepDurations(data)
-            case .failure(let error):
-                print("Sleep fetch error: \(error)")
-            }
-            self.dispatchGroup.leave()
-        }
-
-        // ---- Energy (has internal parallelization) ----
-        dispatchGroup.enter()
-        let energyGroup = DispatchGroup()
-        fetcher.fetchEnergyData(start: startDate, end: endDate, group: energyGroup) { result in
-            switch result {
-            case .success(let (hourlyEnergyData, dailyAverageEnergyData)):
-                self.processHourlyEnergyData(hourlyEnergyData)
-                self.processDailyAverageEnergyData(dailyAverageEnergyData)
-            case .failure(let error):
-                print("Energy fetch error: \(error)")
-            }
-            self.dispatchGroup.leave()
-        }
-
-        // Final notify
-        dispatchGroup.notify(queue: .main) {
-            UserDefaults.standard.set(endDate, forKey: lastSyncDateKey)
-            completion()
-        }
-    }
-
-    
-    private func processHourlyBgData(_ data: [HourlyBgData]) {
-        print("Processed hourly blood glucose data")
         Task {
-            var enriched: [(HourlyBgData, String?)] = []
-            for entry in data {
-                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: entry.startDate)
-                enriched.append((entry, profile?.profileId))
-            }
-            uploader.uploadHourlyBgData(enriched)
-        }
-    }
+            // Build one in-memory resolver (no per-row awaits)
+            let snapshots = (try? await TherapySettingsLogManager.shared
+                .loadSnapshots(since: startDate, until: endDate)) ?? []
+            let baseline = try? await TherapySettingsLogManager.shared
+                .getActiveTherapyProfile(at: startDate.addingTimeInterval(-1))
+            let resolver = ActiveProfileResolver(
+                snapshots: snapshots,
+                windowStart: startDate,
+                windowEnd: endDate,
+                baseline: baseline
+            )
 
-    private func processAvgBgData(_ data: [HourlyAvgBgData]) {
-        print("Processed average blood glucose data")
-        Task {
-            var enriched: [(HourlyAvgBgData, String?)] = []
-            for entry in data {
-                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: entry.startDate)
-                enriched.append((entry, profile?.profileId))
-            }
-            uploader.uploadAverageBgData(enriched)
-        }
-    }
+            // Fire backfills in parallel (do not hold UI spinner on these)
+            self.backfillTherapySettingsByHour(from: startDate, to: endDate, tz: tz)
+            self.backfillSiteChangeDaily(from: startDate, to: endDate, tz: tz)
 
-    private func processHourlyBgPercentages(_ data: [HourlyBgPercentages]) {
-        print("Processed hourly blood glucose percentages")
-        Task {
-            var enriched: [(HourlyBgPercentages, String?)] = []
-            for entry in data {
-                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: entry.startDate)
-                enriched.append((entry, profile?.profileId))
-            }
-            uploader.uploadHourlyBgPercentages(enriched)
-        }
-    }
+            // ---- Blood Glucose ----
+            fetches.enter()
+            let bgInner = DispatchGroup()
+            fetcher.fetchAllBgData(start: startDate, end: endDate, group: bgInner) { result in
+                defer { fetches.leave() }
+                switch result {
+                case .success(let (hourly, avg, pct)):
+                    // hourly
+                    let hourlyEnriched = hourly.map { ($0, resolver.profileId(at: $0.startDate)) }
+                    writes.enter()
+                    self.uploader.uploadHourlyBgData(hourlyEnriched) { writes.leave() }
 
-    private func processHourlyHeartRateData(_ data: [Date: HourlyHeartRateData]) {
-        print("Processed hourly heart rate data")
-        Task {
-            var enriched: [Date: (HourlyHeartRateData, String?)] = [:]
-            for (date, entry) in data {
-                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: date)
-                enriched[date] = (entry, profile?.profileId)
-            }
-            uploader.uploadHourlyHeartRateData(enriched)
-        }
-    }
-    
-    private func processDailyAverageHeartRateData(_ data: [DailyAverageHeartRateData]) {
-        print("Processed daily average heart rate data")
-        uploader.uploadDailyAverageHeartRateData(data)
-    }
-    
-    private func processHourlyBgURoc(_ data: [HourlyBgURoc]) {
-        print("Processed hourly BG uROC")
-        Task {
-            var enriched: [(HourlyBgURoc, String?)] = []
-            for entry in data {
-                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: entry.startDate)
-                enriched.append((entry, profile?.profileId))
-            }
-            uploader.uploadHourlyBgURoc(enriched) // add this method in HealthDataUploader
-        }
-    }
+                    // avg
+                    let avgEnriched = avg.map { ($0, resolver.profileId(at: $0.startDate)) }
+                    writes.enter()
+                    self.uploader.uploadAverageBgData(avgEnriched) { writes.leave() }
 
-    
-    private func processHourlyExerciseData(_ data: [Date: HourlyExerciseData]) {
-        print("Processed hourly exercise data")
-        Task {
-            var enriched: [Date: (HourlyExerciseData, String?)] = [:]
-            for (date, entry) in data {
-                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: date)
-                enriched[date] = (entry, profile?.profileId)
-            }
-            uploader.uploadHourlyExerciseData(enriched)
-        }
-    }
+                    // pct
+                    let pctEnriched = pct.map { ($0, resolver.profileId(at: $0.startDate)) }
+                    writes.enter()
+                    self.uploader.uploadHourlyBgPercentages(pctEnriched) { writes.leave() }
 
-    private func processDailyAverageExerciseData(_ data: [Date: DailyAverageExerciseData]) {
-        print("Processed daily average exercise data")
-        uploader.uploadDailyAverageExerciseData(data)
-    }
-    
-    private func processMenstrualData(_ data: [Date: DailyMenstrualData]) {
-        print("Processed menstrual data")
-        uploader.uploadMenstrualData(data)
-    }
-    
-    private func processBodyMassData(_ data: [HourlyBodyMassData]) {
-        print("Processed body mass data")
+                    // uROC
+                    let uroc = BgAnalytics.computeHourlyURoc(hourlyBgData: hourly, targetBG: 110)
+                    let urocEnriched = uroc.map { ($0, resolver.profileId(at: $0.startDate)) }
+                    writes.enter()
+                    self.uploader.uploadHourlyBgURoc(urocEnriched) { writes.leave() }
 
-        var bodyMassDict = [Date: Double]()
-        Task {
-            var enriched: [(HourlyBodyMassData, String?)] = []
-            for massData in data {
-                bodyMassDict[massData.hour] = massData.weight
-                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: massData.hour)
-                enriched.append((massData, profile?.profileId))
+                case .failure(let err):
+                    print("[sync] BG error:", err.localizedDescription)
+                }
             }
 
-            print("Body mass data dictionary: \(bodyMassDict)")
-            uploader.uploadBodyMassData(enriched)
-        }
-    }
+            // ---- Heart Rate ----
+            fetches.enter()
+            let hrInner = DispatchGroup()
+            fetcher.fetchHeartRateData(start: startDate, end: endDate, group: hrInner) { result in
+                defer { fetches.leave() }
+                switch result {
+                case .success(let (hourly, dailyAvg)):
+                    var enriched: [Date: (HourlyHeartRateData, String?)] = [:]
+                    for (d, e) in hourly { enriched[d] = (e, resolver.profileId(at: d)) }
+                    writes.enter()
+                    self.uploader.uploadHourlyHeartRateData(enriched) { writes.leave() }
 
-    
-    private func processRestingHeartRateData(_ data: [DailyRestingHeartRateData]) {
-        print("Processed resting heart rate data")
-        
-        var restingHeartRateDict = [Date: Double]()
-        for heartRateData in data {
-            restingHeartRateDict[heartRateData.date] = heartRateData.restingHeartRate
-        }
+                    writes.enter()
+                    self.uploader.uploadDailyAverageHeartRateData(dailyAvg) { writes.leave() }
 
-        // Now you can save or process `restingHeartRateDict`
-        print("Resting heart rate data dictionary: \(restingHeartRateDict)")
-        uploader.uploadRestingHeartRateData(data)
-    }
-
-    
-    private func processSleepDurations(_ data: [Date: DailySleepDurations]) {
-        print("Processed sleep durations")
-        uploader.uploadSleepDurations(data)
-    }
-
-    private func processHourlyEnergyData(_ data: [Date: HourlyEnergyData]) {
-        print("Processed hourly energy data")
-        Task {
-            var enriched: [Date: (HourlyEnergyData, String?)] = [:]
-            for (date, entry) in data {
-                let profile = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: date)
-                enriched[date] = (entry, profile?.profileId)
+                case .failure(let err):
+                    print("[sync] HR error:", err.localizedDescription)
+                }
             }
-            uploader.uploadHourlyEnergyData(enriched)
+
+            // ---- Exercise ----
+            fetches.enter()
+            let exInner = DispatchGroup()
+            fetcher.fetchExerciseData(start: startDate, end: endDate, group: exInner) { result in
+                defer { fetches.leave() }
+                switch result {
+                case .success(let (hourly, dailyAvg)):
+                    var enriched: [Date: (HourlyExerciseData, String?)] = [:]
+                    for (d, e) in hourly { enriched[d] = (e, resolver.profileId(at: d)) }
+                    writes.enter()
+                    self.uploader.uploadHourlyExerciseData(enriched) { writes.leave() }
+
+                    writes.enter()
+                    self.uploader.uploadDailyAverageExerciseData(dailyAvg) { writes.leave() }
+
+                case .failure(let err):
+                    print("[sync] Exercise error:", err.localizedDescription)
+                }
+            }
+
+            // ---- Menstrual ----
+            fetches.enter()
+            self.fetcher.fetchMenstrualData(start: startDate, end: endDate) { result in
+                defer { fetches.leave() }
+                switch result {
+                case .success(let data):
+                    writes.enter()
+                    self.uploader.uploadMenstrualData(data) { writes.leave() }
+                case .failure(let err):
+                    print("[sync] Menstrual error:", err.localizedDescription)
+                }
+            }
+
+            // ---- Body Mass ----
+            fetches.enter()
+            let bmInner = DispatchGroup()
+            self.fetcher.fetchBodyMassData(start: startDate, end: endDate, group: bmInner) { result in
+                defer { fetches.leave() }
+                switch result {
+                case .success(let data):
+                    let enriched = data.map { ($0, resolver.profileId(at: $0.hour)) }
+                    writes.enter()
+                    self.uploader.uploadBodyMassData(enriched) { writes.leave() }
+                case .failure(let err):
+                    print("[sync] BodyMass error:", err.localizedDescription)
+                }
+            }
+
+            // ---- Resting HR ----
+            fetches.enter()
+            self.fetcher.fetchRestingHeartRate(start: startDate, end: endDate) { result in
+                defer { fetches.leave() }
+                switch result {
+                case .success(let data):
+                    writes.enter()
+                    self.uploader.uploadRestingHeartRateData(data) { writes.leave() }
+                case .failure(let err):
+                    print("[sync] RestingHR error:", err.localizedDescription)
+                }
+            }
+
+            // ---- Sleep ----
+            fetches.enter()
+            self.fetcher.fetchSleepDurations(start: startDate, end: endDate) { result in
+                defer { fetches.leave() }
+                switch result {
+                case .success(let data):
+                    writes.enter()
+                    self.uploader.uploadSleepDurations(data) { writes.leave() }
+                case .failure(let err):
+                    print("[sync] Sleep error:", err.localizedDescription)
+                }
+            }
+
+            // ---- Energy ----
+            fetches.enter()
+            let enInner = DispatchGroup()
+            self.fetcher.fetchEnergyData(start: startDate, end: endDate, group: enInner) { result in
+                defer { fetches.leave() }
+                switch result {
+                case .success(let (hourly, dailyAvg)):
+                    var enriched: [Date: (HourlyEnergyData, String?)] = [:]
+                    for (d, e) in hourly { enriched[d] = (e, resolver.profileId(at: d)) }
+                    writes.enter()
+                    self.uploader.uploadHourlyEnergyData(enriched) { writes.leave() }
+
+                    writes.enter()
+                    self.uploader.uploadDailyAverageEnergyData(dailyAvg) { writes.leave() }
+
+                case .failure(let err):
+                    print("[sync] Energy error:", err.localizedDescription)
+                }
+            }
+
+            // Phase 2: after all fetches complete, wait for all writes; then finish.
+            fetches.notify(queue: .global()) {
+                writes.notify(queue: .main) {
+                    UserDefaults.standard.set(endDate, forKey: lastSyncKey)
+                    if !hasDoneInitial { UserDefaults.standard.set(true, forKey: firstRunKey) }
+                    completion()
+                }
+            }
         }
     }
+}
 
-    private func processDailyAverageEnergyData(_ data: [DailyAverageEnergyData]) {
-        print("Processed daily average energy data")
-        uploader.uploadDailyAverageEnergyData(data)
-    }
-
+// MARK: - Therapy hourly backfill (unchanged logic)
+extension DataManager {
     func backfillTherapySettingsByHour(from startDate: Date, to endDate: Date, tz: TimeZone = .current) {
         Task {
-            // 0) Decide window with a small buffer and last-backfill memory
             let key = "LastTherapyHourBackfill"
             let last = (UserDefaults.standard.object(forKey: key) as? Date)
-            let windowStart = max(last ?? startDate, startDate).addingTimeInterval(-86_400) // -24h buffer
-            let windowEnd = endDate
+            let windowStart = max(last ?? startDate, startDate)
+            let windowEnd   = endDate
 
-            // 1) Load snapshots once
-            let snaps = (try? await TherapySettingsLogManager.shared.loadSnapshots(since: windowStart, until: windowEnd)) ?? []
+            var snaps = (try? await TherapySettingsLogManager.shared
+                .loadSnapshots(since: windowStart, until: windowEnd)) ?? []
+
+            if let baseline = try? await TherapySettingsLogManager.shared
+                .getActiveTherapyProfile(at: windowStart.addingTimeInterval(-1)),
+               snaps.first?.timestamp != baseline.timestamp {
+                snaps.insert(baseline, at: 0)
+            }
+
             guard !snaps.isEmpty else {
-                print("No therapy snapshots; skipping backfill")
+                print("No therapy snapshots; skipping therapy hourly backfill")
                 UserDefaults.standard.set(windowEnd, forKey: key)
                 return
             }
-            print("snapshot not empty")
+            snaps.sort { $0.timestamp < $1.timestamp }
 
-            // 2) Build intervals: [snap[i].timestamp, snap[i+1].timestamp)
-            struct Interval { let start: Date; let end: Date?; let snap: TherapySnapshot }
+            struct Interval { let start: Date; let end: Date; let snap: TherapySnapshot }
             var intervals: [Interval] = []
             for i in 0..<snaps.count {
-                let startT = snaps[i].timestamp
-                let endT = (i+1 < snaps.count) ? snaps[i+1].timestamp : nil
-                intervals.append(Interval(start: startT, end: endT, snap: snaps[i]))
+                let s = max(windowStart, snaps[i].timestamp)
+                let e = (i + 1 < snaps.count) ? min(windowEnd, snaps[i+1].timestamp) : windowEnd
+                if s < e { intervals.append(.init(start: s, end: e, snap: snaps[i])) }
+            }
+            guard !intervals.isEmpty else {
+                print("No intervals within window; skipping")
+                UserDefaults.standard.set(windowEnd, forKey: key)
+                return
             }
 
-            // 3) Walk each UTC hour in window and resolve settings
             var hours: [TherapyHour] = []
-            for hourStart in eachHourUTC(from: windowStart, to: windowEnd) {
-                // find interval covering hourStart
-                guard let iv = intervals.last(where: { hourStart >= $0.start && ( $0.end == nil || hourStart < $0.end! ) }) else {
-                    continue // before first snapshot; skip or choose policy
-                }
-                // map hourStart -> local hour to select HourRange
-                let localHour = localHour(for: hourStart, tz: tz)
-                guard let hr = rangeFor(localHour: localHour, in: iv.snap.hourRanges) else {
-                    // if gap, you can choose to skip or fallback
-                    continue
-                }
-                hours.append(
-                    TherapyHour(
-                        hourStartUtc: hourStart,
-                        profileId: iv.snap.profileId,
-                        profileName: iv.snap.profileName,
-                        snapshotTimestamp: iv.snap.timestamp,
-                        carbRatio: hr.carbRatio,
-                        basalRate: hr.basalRate,
-                        insulinSensitivity: hr.insulinSensitivity,
-                        localTz: tz,
-                        localHour: localHour
-                    )
-                )
+            for hourStart in eachHourUTC(from: intervals.first!.start, to: intervals.last!.end) {
+                guard let iv = intervals.last(where: { hourStart >= $0.start && hourStart < $0.end }) else { continue }
+                let lh = localHour(for: hourStart, tz: tz)
+                guard let r = rangeFor(localHour: lh, in: iv.snap.hourRanges) else { continue }
+                hours.append(.init(
+                    hourStartUtc: hourStart,
+                    profileId: iv.snap.profileId,
+                    profileName: iv.snap.profileName,
+                    snapshotTimestamp: iv.snap.timestamp,
+                    carbRatio: r.carbRatio,
+                    basalRate: r.basalRate,
+                    insulinSensitivity: r.insulinSensitivity,
+                    localTz: tz,
+                    localHour: lh
+                ))
             }
 
-            // 4) Upload in batches (idempotent: doc id = hourStartUtc)
-            uploader.uploadTherapySettingsByHour(hours)
+            print("Therapy hourly to upload: \(hours.count) rows [\(intervals.first!.start) – \(intervals.last!.end)]")
+            guard !hours.isEmpty else {
+                UserDefaults.standard.set(windowEnd, forKey: key)
+                return
+            }
 
-            // 5) Advance checkpoint
+            // non-blocking (don’t hold spinner on this)
+            uploader.uploadTherapySettingsByHour(hours)
             UserDefaults.standard.set(windowEnd, forKey: key)
         }
     }
@@ -396,11 +351,10 @@ class DataManager {
     private func localHour(for utcHourStart: Date, tz: TimeZone) -> Int {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = tz
-        return cal.component(.hour, from: utcHourStart) // using the same moment, just viewed in local tz
+        return cal.component(.hour, from: utcHourStart)
     }
 
     private func rangeFor(localHour: Int, in ranges: [HourRange]) -> HourRange? {
-        // supports wraparound: e.g., 22..5 means 22,23,0,1,2,3,4,5
         func contains(_ r: HourRange, _ h: Int) -> Bool {
             if r.startHour <= r.endHour {
                 return (r.startHour...r.endHour).contains(h)
@@ -408,7 +362,6 @@ class DataManager {
                 return h >= r.startHour || h <= r.endHour
             }
         }
-        // If multiple match, prefer the most specific (shortest span)
         return ranges
             .filter { contains($0, localHour) }
             .sorted { span($0) < span($1) }
@@ -422,6 +375,7 @@ class DataManager {
     }
 }
 
+// MARK: - Site-change daily backfill
 extension DataManager {
     func backfillSiteChangeDaily(from startDate: Date, to endDate: Date, tz: TimeZone = .current) {
         Task { [weak self] in
@@ -431,56 +385,105 @@ extension DataManager {
                 return
             }
             self.uploader.refresh(for: uid)
-            let eventsRef = Firestore.firestore()
-                .collection("users").document(uid)
+
+            let db = Firestore.firestore()
+            let eventsRef = db.collection("users").document(uid)
                 .collection("site_changes").document("events")
                 .collection("items")
-
-            // Latest event up to now
-            let snapshot = try? await eventsRef
-                .order(by: "timestamp", descending: true)
-                .limit(to: 1)
-                .getDocuments()
-
-            guard let doc = snapshot?.documents.first else {
-                print("No site-change events found; skipping daily backfill.")
-                return
-            }
-
-            let data = doc.data()
-            // Prefer 'timestamp' but fall back to 'createdAt' to avoid races.
-            let ts = (data["timestamp"] as? Timestamp)?.dateValue()
-                  ?? (data["createdAt"] as? Timestamp)?.dateValue()
-            guard let eventDate = ts, let location = data["location"] as? String else {
-                print("Latest site-change doc missing fields; skipping daily backfill.")
-                return
-            }
+            let dailyRef = db.collection("users").document(uid)
+                .collection("site_changes").document("daily")
+                .collection("items")
 
             var cal = Calendar(identifier: .gregorian)
             cal.timeZone = tz
 
-            let dayStart = cal.startOfDay(for: max(startDate, eventDate))
-            let today    = cal.startOfDay(for: endDate)
+            let latestDailySnap = try? await dailyRef
+                .order(by: "dateUtc", descending: true)
+                .limit(to: 1)
+                .getDocuments()
+            let lastDailyDateStr = latestDailySnap?.documents.first?.data()["dateUtc"] as? String
+            let isoDay = ISO8601DateFormatter()
+            isoDay.timeZone = TimeZone(secondsFromGMT: 0)
+            isoDay.formatOptions = [.withFullDate]
+            let lastDailyDate: Date? = lastDailyDateStr.flatMap { isoDay.date(from: $0) }
+            let dayAfterLastDaily = lastDailyDate.map { cal.date(byAdding: .day, value: 1, to: $0)! }
 
-            var rows: [(Date, Int, String)] = []
-            var cur = dayStart
-            while cur <= today {
-                let days = cal.dateComponents([.day],
-                                              from: cal.startOfDay(for: eventDate),
-                                              to: cur).day ?? 0
-                rows.append((cur, max(0, days), location))
-                cur = cal.date(byAdding: .day, value: 1, to: cur)!
+            let writeStartAnchor = [dayAfterLastDaily, startDate].compactMap { $0 }.max() ?? startDate
+            let today = cal.startOfDay(for: endDate)
+
+            let baselineSnap = try? await eventsRef
+                .order(by: "timestamp", descending: true)
+                .whereField("timestamp", isLessThan: Timestamp(date: writeStartAnchor))
+                .limit(to: 1)
+                .getDocuments()
+            let windowSnap = try? await eventsRef
+                .order(by: "timestamp", descending: false)
+                .whereField("timestamp", isGreaterThanOrEqualTo: Timestamp(date: writeStartAnchor))
+                .whereField("timestamp", isLessThanOrEqualTo: Timestamp(date: endDate))
+                .getDocuments()
+
+            struct Ev { let date: Date; let location: String }
+            var events: [Ev] = []
+            if let b = baselineSnap?.documents.first {
+                let d = b.data()
+                if let ts = (d["timestamp"] as? Timestamp)?.dateValue()
+                    ?? (d["createdAt"] as? Timestamp)?.dateValue(),
+                   let loc = d["location"] as? String {
+                    events.append(Ev(date: ts, location: loc))
+                }
+            }
+            if let w = windowSnap?.documents {
+                for doc in w {
+                    let d = doc.data()
+                    if let ts = (d["timestamp"] as? Timestamp)?.dateValue()
+                        ?? (d["createdAt"] as? Timestamp)?.dateValue(),
+                       let loc = d["location"] as? String {
+                        events.append(Ev(date: ts, location: loc))
+                    }
+                }
             }
 
-            self.uploader.upsertDailySiteStatus(
-                rows.map { (date: $0.0, daysSince: $0.1, location: $0.2) }
-            )
-        }
-    }
-}
+            guard !events.isEmpty else {
+                print("No site-change events found; skipping daily backfill.")
+                return
+            }
+            events.sort { $0.date < $1.date }
 
-extension DataManager {
-    func handleLogout(for uid: String?) {
-        uploader.clear()
+            struct Seg { let start: Date; let end: Date; let origin: Date; let location: String }
+            var segs: [Seg] = []
+            for i in 0..<events.count {
+                let e = events[i]
+                let segStart = max(cal.startOfDay(for: writeStartAnchor), cal.startOfDay(for: e.date))
+                let nextStart: Date = {
+                    if i + 1 < events.count {
+                        return cal.date(byAdding: .day, value: -1, to: cal.startOfDay(for: events[i+1].date))!
+                    } else {
+                        return today
+                    }
+                }()
+                let segEnd = min(today, nextStart)
+                if segStart <= segEnd {
+                    segs.append(.init(start: segStart, end: segEnd,
+                                      origin: cal.startOfDay(for: e.date),
+                                      location: e.location))
+                }
+            }
+
+            var rows: [(Date, Int, String)] = []
+            for s in segs {
+                var cur = s.start
+                while cur <= s.end {
+                    let days = cal.dateComponents([.day], from: s.origin, to: cur).day ?? 0
+                    rows.append((cur, max(0, days), s.location))
+                    cur = cal.date(byAdding: .day, value: 1, to: cur)!
+                }
+            }
+
+            guard !rows.isEmpty else {
+                print("No daily rows to upsert.")
+                return
+            }
+            self.uploader.upsertDailySiteStatus(rows.map { (date: $0.0, daysSince: $0.1, location: $0.2) })
+        }
     }
 }

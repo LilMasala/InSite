@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Firebase
 import FirebaseAuth
 
 
@@ -91,14 +92,55 @@ class SiteChangeData: ObservableObject {
     }
 
     func refreshState(for uid: String? = Auth.auth().currentUser?.uid) {
-        let location = storedLocation(uid: uid) ?? "Not selected"
-        let last = lastChangeDate(for: uid)
-        let days = Self.daysSinceChange(from: last)
-        DispatchQueue.main.async {
-            self.siteChangeLocation = location
-            self.daysSinceSiteChange = days
+        guard let uid = uid, !uid.isEmpty else {
+            // fall back to local cached values if not signed in
+            let location = storedLocation() ?? "Not selected"
+            let days = Self.daysSinceChange(from: lastChangeDate)
+            DispatchQueue.main.async {
+                self.siteChangeLocation = location
+                self.daysSinceSiteChange = days
+            }
+            return
         }
+
+        Firestore.firestore()
+            .collection("users").document(uid)
+            .collection("site_changes").document("daily")
+            .collection("items")
+            .order(by: "dateUtc", descending: true)   // "YYYY-MM-DD" strings sort fine
+            .limit(to: 1)
+            .getDocuments { snap, err in
+                if let err = err {
+                    print("refreshState site_changes/daily error:", err)
+                    // fall back to local cache
+                    let location = self.storedLocation(uid: uid) ?? "Not selected"
+                    let days = Self.daysSinceChange(from: self.lastChangeDate(for: uid))
+                    DispatchQueue.main.async {
+                        self.siteChangeLocation = location
+                        self.daysSinceSiteChange = days
+                    }
+                    return
+                }
+                if let data = snap?.documents.first?.data() {
+                    let days = data["daysSinceChange"] as? Int ?? 0
+                    let loc  = data["location"] as? String ?? "Not selected"
+                    DispatchQueue.main.async {
+                        self.siteChangeLocation = loc
+                        self.daysSinceSiteChange = days
+                    }
+                } else {
+                    // no rows yet → fall back to local cache
+                    let location = self.storedLocation(uid: uid) ?? "Not selected"
+                    let days = Self.daysSinceChange(from: self.lastChangeDate(for: uid))
+                    DispatchQueue.main.async {
+                        self.siteChangeLocation = location
+                        self.daysSinceSiteChange = days
+                    }
+                }
+            }
     }
+
+
 
     func setSiteChange(location: String) {
         siteChangeLocation = location

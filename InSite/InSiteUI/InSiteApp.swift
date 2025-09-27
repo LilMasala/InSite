@@ -30,6 +30,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 @main
 struct YourApp: App {
+  @StateObject private var themeManager = ThemeManager()
   @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
-  var body: some Scene { WindowGroup { RootView() } }
+
+  var body: some Scene {
+    WindowGroup {
+      RootView()
+        .environmentObject(themeManager)   // <-- this was missing
+    }
+  }
 }
