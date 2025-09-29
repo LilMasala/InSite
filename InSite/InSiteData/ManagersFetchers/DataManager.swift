@@ -78,11 +78,27 @@ final class DataManager {
         let startDate: Date = (UserDefaults.standard.object(forKey: lastSyncKey) as? Date)
             ?? Calendar.current.date(byAdding: .day, value: defaultBackfillDays, to: now)!
         let endDate = now
+        
+        var bg_hourly: [HourlyBgData] = []
+        var bg_avg: [HourlyAvgBgData] = []
+        var bg_pct: [HourlyBgPercentages] = []
+        var bg_uroc: [HourlyBgURoc] = []
+
+        var hr_hourly: [Date: HourlyHeartRateData] = [:]
+        var hr_restingDaily: [DailyRestingHeartRateData] = []
+
+        var ex_hourly: [Date: HourlyExerciseData] = [:]
+
+        var sleep_daily: [Date: DailySleepDurations] = [:]      // you already upload this; reuse for CTX
+        var energy_hourly: [Date: HourlyEnergyData] = [:]
+
+        var menstrual_daily: [Date: DailyMenstrualData] = [:]
 
         
         // Two-phase coordination
         let fetches = DispatchGroup()
         let writes  = DispatchGroup()
+        
 
         Task {
             // Build one in-memory resolver (no per-row awaits)
@@ -108,6 +124,11 @@ final class DataManager {
                 defer { fetches.leave() }
                 switch result {
                 case .success(let (hourly, avg, pct)):
+                    
+                    bg_hourly = hourly
+                    bg_avg    = avg
+                    bg_pct    = pct
+
                     // hourly
                     let hourlyEnriched = hourly.map { ($0, resolver.profileId(at: $0.startDate)) }
                     writes.enter()
@@ -125,6 +146,8 @@ final class DataManager {
 
                     // uROC
                     let uroc = BgAnalytics.computeHourlyURoc(hourlyBgData: hourly, targetBG: 110)
+                    
+                    bg_uroc = uroc
                     let urocEnriched = uroc.map { ($0, resolver.profileId(at: $0.startDate)) }
                     writes.enter()
                     self.uploader.uploadHourlyBgURoc(urocEnriched) { writes.leave() }
@@ -141,6 +164,9 @@ final class DataManager {
                 defer { fetches.leave() }
                 switch result {
                 case .success(let (hourly, dailyAvg)):
+                    
+                    hr_hourly = hourly
+                    
                     var enriched: [Date: (HourlyHeartRateData, String?)] = [:]
                     for (d, e) in hourly { enriched[d] = (e, resolver.profileId(at: d)) }
                     writes.enter()
@@ -161,6 +187,7 @@ final class DataManager {
                 defer { fetches.leave() }
                 switch result {
                 case .success(let (hourly, dailyAvg)):
+                    ex_hourly = hourly
                     var enriched: [Date: (HourlyExerciseData, String?)] = [:]
                     for (d, e) in hourly { enriched[d] = (e, resolver.profileId(at: d)) }
                     writes.enter()
@@ -180,6 +207,7 @@ final class DataManager {
                 defer { fetches.leave() }
                 switch result {
                 case .success(let data):
+                    menstrual_daily = data
                     writes.enter()
                     self.uploader.uploadMenstrualData(data) { writes.leave() }
                 case .failure(let err):
@@ -208,7 +236,9 @@ final class DataManager {
                 defer { fetches.leave() }
                 switch result {
                 case .success(let data):
+                    hr_restingDaily = data
                     writes.enter()
+                    
                     self.uploader.uploadRestingHeartRateData(data) { writes.leave() }
                 case .failure(let err):
                     print("[sync] RestingHR error:", err.localizedDescription)
@@ -221,6 +251,7 @@ final class DataManager {
                 defer { fetches.leave() }
                 switch result {
                 case .success(let data):
+                    sleep_daily = data
                     writes.enter()
                     self.uploader.uploadSleepDurations(data) { writes.leave() }
                 case .failure(let err):
@@ -235,6 +266,7 @@ final class DataManager {
                 defer { fetches.leave() }
                 switch result {
                 case .success(let (hourly, dailyAvg)):
+                    energy_hourly = hourly
                     var enriched: [Date: (HourlyEnergyData, String?)] = [:]
                     for (d, e) in hourly { enriched[d] = (e, resolver.profileId(at: d)) }
                     writes.enter()
@@ -250,12 +282,93 @@ final class DataManager {
 
             // Phase 2: after all fetches complete, wait for all writes; then finish.
             fetches.notify(queue: .global()) {
+                // ---- Build CTXs safely on a background queue ----
+                // Define the hour span for join (UTC-rounded)
+                func floorToHourUTC(_ d: Date) -> Date {
+                    var cal = Calendar(identifier: .gregorian)
+                    cal.timeZone = TimeZone(secondsFromGMT: 0)!
+                    let comps = cal.dateComponents([.year,.month,.day,.hour], from: d)
+                    return cal.date(from: comps)!
+                }
+                let span: ClosedRange<Date> = floorToHourUTC(startDate)...floorToHourUTC(endDate)
+
+                // BG CTX
+                let bgCtx: [Date: BGCTX] = buildBGCTXByHour(
+                    hourly: bg_hourly,
+                    avg: bg_avg,
+                    pct: bg_pct,
+                    uroc: bg_uroc,
+                    hourValues: nil // plug in if you later fetch raw hourly values
+                )
+
+                // HR CTX
+                let hrCtx: [Date: HRCTX] = buildHRCTXByHour(
+                    hourlyHR: hr_hourly,
+                    restingDaily: hr_restingDaily
+                )
+
+                // Energy CTX
+                let energyCtx: [Date: EnergyCTX] = buildEnergyCTXByHour(
+                    hourly: energy_hourly
+                )
+
+                // Sleep CTX
+                let sleepCtx: [Date: SleepCTX] = buildSleepCTXByHour(
+                    hourlySpan: span,
+                    daily: sleep_daily,
+                    mainWindows: nil,                   // plug in when you have main sleep windows
+                    targetSleepMinPerNight: 7.5 * 60.0
+                )
+
+                // Exercise CTX
+                let exerciseCtx: [Date: ExerciseCTX] = buildExerciseCTXByHour(
+                    hourly: ex_hourly
+                )
+
+                // Menstrual CTX (per-hour expansion from per-day map)
+                let menstrualCtx: [Date: MenstrualCTX] = buildMenstrualCtxByHour(
+                    daily: menstrual_daily,
+                    startUtc: span.lowerBound,
+                    endUtc: span.upperBound
+                )
+                
+                // define span earlier as you already do
+                let moodEvents = MoodCache.shared.load() // or fetch from Firestore if you prefer
+                let moodCtx: [Date: MoodCTX] = buildMoodCTXByHour(span: span, events: moodEvents, maxCarryHours: 24)
+                
+                // Site CTX: leave empty for now (we can add a builder that expands your daily rows to hours)
+                writes.enter() // make frames upload part of the "writes" phase
+                SiteChangeData.shared.buildSiteCtxByHour(startUtc: span.lowerBound, endUtc: span.upperBound) { siteCtx in
+                    let frames = makeFeatureFramesHourly(
+                        span: span,
+                        bg: bgCtx,
+                        hr: hrCtx,
+                        energy: energyCtx,
+                        sleep: sleepCtx,
+                        exercise: exerciseCtx,
+                        menstrual: menstrualCtx,
+                        site: siteCtx,
+                        mood: moodCtx
+                    )
+                    
+                    if !frames.isEmpty {
+                        self.uploader.uploadFeatureFramesHourly(frames) {
+                            writes.leave()
+                        }
+                    } else {
+                        writes.leave()
+                    }
+                }
+                
+
+                // ---- Finish after all writes (old + frames) complete ----
                 writes.notify(queue: .main) {
                     UserDefaults.standard.set(endDate, forKey: lastSyncKey)
                     if !hasDoneInitial { UserDefaults.standard.set(true, forKey: firstRunKey) }
                     completion()
                 }
             }
+
         }
     }
 }
@@ -263,70 +376,83 @@ final class DataManager {
 // MARK: - Therapy hourly backfill (unchanged logic)
 extension DataManager {
     func backfillTherapySettingsByHour(from startDate: Date, to endDate: Date, tz: TimeZone = .current) {
-        Task {
-            let key = "LastTherapyHourBackfill"
-            let last = (UserDefaults.standard.object(forKey: key) as? Date)
-            let windowStart = max(last ?? startDate, startDate)
-            let windowEnd   = endDate
+            Task {
+                let key = "LastTherapyHourBackfill"
+                let last = (UserDefaults.standard.object(forKey: key) as? Date)
+                let windowStart = max(last ?? startDate, startDate)
+                let windowEnd   = endDate
 
-            var snaps = (try? await TherapySettingsLogManager.shared
-                .loadSnapshots(since: windowStart, until: windowEnd)) ?? []
+                var snaps = (try? await TherapySettingsLogManager.shared
+                    .loadSnapshots(since: windowStart, until: windowEnd)) ?? []
 
-            if let baseline = try? await TherapySettingsLogManager.shared
-                .getActiveTherapyProfile(at: windowStart.addingTimeInterval(-1)),
-               snaps.first?.timestamp != baseline.timestamp {
-                snaps.insert(baseline, at: 0)
-            }
+                if let baseline = try? await TherapySettingsLogManager.shared
+                    .getActiveTherapyProfile(at: windowStart.addingTimeInterval(-1)),
+                   snaps.first?.timestamp != baseline.timestamp {
+                    snaps.insert(baseline, at: 0)
+                }
 
-            guard !snaps.isEmpty else {
-                print("No therapy snapshots; skipping therapy hourly backfill")
+                guard !snaps.isEmpty else {
+                    print("No therapy snapshots; skipping therapy hourly backfill")
+                    UserDefaults.standard.set(windowEnd, forKey: key)
+                    return
+                }
+                snaps.sort { $0.timestamp < $1.timestamp }
+
+                struct Interval { let start: Date; let end: Date; let snap: TherapySnapshot }
+                var intervals: [Interval] = []
+                for i in 0..<snaps.count {
+                    let s = max(windowStart, snaps[i].timestamp)
+                    let e = (i + 1 < snaps.count) ? min(windowEnd, snaps[i+1].timestamp) : windowEnd
+                    if s < e { intervals.append(.init(start: s, end: e, snap: snaps[i])) }
+                }
+                guard !intervals.isEmpty else {
+                    print("No intervals within window; skipping")
+                    UserDefaults.standard.set(windowEnd, forKey: key)
+                    return
+                }
+
+                var hours: [TherapyHour] = []
+                for hourStart in eachHourUTC(from: intervals.first!.start, to: intervals.last!.end) {
+                    guard let iv = intervals.last(where: { hourStart >= $0.start && hourStart < $0.end }) else { continue }
+
+                    // ---- NEW: get a V2 schedule for this snapshot ----
+                    let scheduleTZ = TimeZone(identifier: iv.snap.therapyFunctionV2?.tzIdentifier ?? tz.identifier) ?? tz
+                    let v2: TherapyFunctionV2 = {
+                        if let s = iv.snap.therapyFunctionV2 { return s }
+                        return makeV2(from: iv.snap.hourRanges, tz: scheduleTZ)
+                    }()
+
+                    // Localize the hourStart to the schedule's TZ
+                    var cal = Calendar(identifier: .gregorian); cal.timeZone = scheduleTZ
+                    let localHourStart = hourStart // same instant, different calendar interpretation handled by value(at:)
+
+                    // Evaluate exact settings at the *start of the local hour*
+                    let (basal, isf, cr) = v2.value(at: localHourStart)
+                    let lh = cal.component(.hour, from: localHourStart)
+
+                    hours.append(.init(
+                        hourStartUtc: hourStart,
+                        profileId: iv.snap.profileId,
+                        profileName: iv.snap.profileName,
+                        snapshotTimestamp: iv.snap.timestamp,
+                        carbRatio: cr,
+                        basalRate: basal,
+                        insulinSensitivity: isf,
+                        localTz: scheduleTZ,
+                        localHour: lh
+                    ))
+                }
+
+                print("Therapy hourly to upload: \(hours.count) rows [\(intervals.first!.start) – \(intervals.last!.end)]")
+                guard !hours.isEmpty else {
+                    UserDefaults.standard.set(windowEnd, forKey: key)
+                    return
+                }
+
+                uploader.uploadTherapySettingsByHour(hours)
                 UserDefaults.standard.set(windowEnd, forKey: key)
-                return
             }
-            snaps.sort { $0.timestamp < $1.timestamp }
-
-            struct Interval { let start: Date; let end: Date; let snap: TherapySnapshot }
-            var intervals: [Interval] = []
-            for i in 0..<snaps.count {
-                let s = max(windowStart, snaps[i].timestamp)
-                let e = (i + 1 < snaps.count) ? min(windowEnd, snaps[i+1].timestamp) : windowEnd
-                if s < e { intervals.append(.init(start: s, end: e, snap: snaps[i])) }
-            }
-            guard !intervals.isEmpty else {
-                print("No intervals within window; skipping")
-                UserDefaults.standard.set(windowEnd, forKey: key)
-                return
-            }
-
-            var hours: [TherapyHour] = []
-            for hourStart in eachHourUTC(from: intervals.first!.start, to: intervals.last!.end) {
-                guard let iv = intervals.last(where: { hourStart >= $0.start && hourStart < $0.end }) else { continue }
-                let lh = localHour(for: hourStart, tz: tz)
-                guard let r = rangeFor(localHour: lh, in: iv.snap.hourRanges) else { continue }
-                hours.append(.init(
-                    hourStartUtc: hourStart,
-                    profileId: iv.snap.profileId,
-                    profileName: iv.snap.profileName,
-                    snapshotTimestamp: iv.snap.timestamp,
-                    carbRatio: r.carbRatio,
-                    basalRate: r.basalRate,
-                    insulinSensitivity: r.insulinSensitivity,
-                    localTz: tz,
-                    localHour: lh
-                ))
-            }
-
-            print("Therapy hourly to upload: \(hours.count) rows [\(intervals.first!.start) – \(intervals.last!.end)]")
-            guard !hours.isEmpty else {
-                UserDefaults.standard.set(windowEnd, forKey: key)
-                return
-            }
-
-            // non-blocking (don’t hold spinner on this)
-            uploader.uploadTherapySettingsByHour(hours)
-            UserDefaults.standard.set(windowEnd, forKey: key)
         }
-    }
 
     // --- helpers ---
     private func eachHourUTC(from start: Date, to end: Date) -> [Date] {
@@ -397,25 +523,37 @@ extension DataManager {
             var cal = Calendar(identifier: .gregorian)
             cal.timeZone = tz
 
-            let latestDailySnap = try? await dailyRef
-                .order(by: "dateUtc", descending: true)
-                .limit(to: 1)
-                .getDocuments()
-            let lastDailyDateStr = latestDailySnap?.documents.first?.data()["dateUtc"] as? String
+            // --- Clamp “daily” seed to strictly before endDate's start-of-day (ignore "today") ---
+            let today = cal.startOfDay(for: endDate)
+
             let isoDay = ISO8601DateFormatter()
             isoDay.timeZone = TimeZone(secondsFromGMT: 0)
             isoDay.formatOptions = [.withFullDate]
+
+            // Use string compare on ISO full-date (lexicographic-safe)
+            let todayStr = isoDay.string(from: today)
+
+            let latestDailySnap = try? await dailyRef
+                .whereField("dateUtc", isLessThan: todayStr)  // < today only
+                .order(by: "dateUtc", descending: true)
+                .limit(to: 1)
+                .getDocuments()
+
+            let lastDailyDateStr = latestDailySnap?.documents.first?.data()["dateUtc"] as? String
             let lastDailyDate: Date? = lastDailyDateStr.flatMap { isoDay.date(from: $0) }
             let dayAfterLastDaily = lastDailyDate.map { cal.date(byAdding: .day, value: 1, to: $0)! }
 
-            let writeStartAnchor = [dayAfterLastDaily, startDate].compactMap { $0 }.max() ?? startDate
-            let today = cal.startOfDay(for: endDate)
+            // --- Derive writeStartAnchor AFTER clamp; never later than startOfDay(endDate) ---
+            let unclampedAnchor = [dayAfterLastDaily, startDate].compactMap { $0 }.max() ?? startDate
+            let writeStartAnchor = min(unclampedAnchor, today)
 
+            // --- Fetch baseline + window events bounded by writeStartAnchor .. endDate ---
             let baselineSnap = try? await eventsRef
                 .order(by: "timestamp", descending: true)
                 .whereField("timestamp", isLessThan: Timestamp(date: writeStartAnchor))
                 .limit(to: 1)
                 .getDocuments()
+
             let windowSnap = try? await eventsRef
                 .order(by: "timestamp", descending: false)
                 .whereField("timestamp", isGreaterThanOrEqualTo: Timestamp(date: writeStartAnchor))
@@ -485,5 +623,12 @@ extension DataManager {
             }
             self.uploader.upsertDailySiteStatus(rows.map { (date: $0.0, daysSince: $0.1, location: $0.2) })
         }
+    }
+}
+
+
+extension DataManager {
+    func recordMood(_ point: MoodPoint, completion: (() -> Void)? = nil) {
+        uploader.uploadMoodEvents([point], onDone: completion)
     }
 }

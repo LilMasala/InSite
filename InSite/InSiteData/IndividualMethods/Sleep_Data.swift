@@ -85,3 +85,67 @@ extension HealthStore {
         healthStore.execute(query)
     }
 }
+
+
+/// Optional helper: returns the main overnight sleep interval per day (start,end).
+/// "Main sleep" ≈ the longest contiguous 'asleep*' span crossing local midnight.
+public struct MainSleepWindow {
+    public let day: Date          // UTC midnight of the *wake day*
+    public let start: Date        // exact timestamp
+    public let end: Date          // exact timestamp
+}
+
+extension HealthStore {
+    public func fetchMainSleepWindows(
+        startDate: Date,
+        endDate: Date,
+        completion: @escaping (Result<[Date: MainSleepWindow], Error>) -> Void
+    ) {
+        guard let healthStore = self.healthStore else {
+            completion(.failure(HealthStoreError.notAvailable)); return
+        }
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        let q = HKSampleQuery(sampleType: sleepType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { _, samples, err in
+            guard let samples = samples as? [HKCategorySample], err == nil else {
+                completion(.failure(err ?? HealthStoreError.dataUnavailable("sleep-episodes"))); return
+            }
+            // Heuristic: group contiguous asleep* states into episodes; pick the longest per wake day.
+            let cal = Calendar(identifier: .gregorian)
+            var episodesByWakeDay: [Date: (Date, Date)] = [:]
+
+            var curStart: Date? = nil
+            var curEnd: Date? = nil
+            func closeEpisode() {
+                guard let s = curStart, let e = curEnd, e > s else { return }
+                // wake day = UTC midnight for end time
+                let wakeDay = cal.startOfDay(for: e)
+                if let prev = episodesByWakeDay[wakeDay] {
+                    if (e.timeIntervalSince(s) > prev.1.timeIntervalSince(prev.0)) {
+                        episodesByWakeDay[wakeDay] = (s,e)
+                    }
+                } else {
+                    episodesByWakeDay[wakeDay] = (s,e)
+                }
+            }
+
+            for s in samples {
+                let v = HKCategoryValueSleepAnalysis(rawValue: s.value) ?? .asleepUnspecified
+                let isAsleep = (v == .asleepCore || v == .asleepDeep || v == .asleepREM || v == .asleepUnspecified)
+                if isAsleep {
+                    if curStart == nil { curStart = s.startDate }
+                    curEnd = max(curEnd ?? s.endDate, s.endDate)
+                } else {
+                    closeEpisode()
+                    curStart = nil; curEnd = nil
+                }
+            }
+            closeEpisode()
+
+            let out = episodesByWakeDay.mapValues { MainSleepWindow(day: cal.startOfDay(for: $0.1), start: $0.0, end: $0.1) }
+            completion(.success(out))
+        }
+        healthStore.execute(q)
+    }
+}

@@ -22,6 +22,8 @@ enum DataKind: String {
     case therapySettings     = "therapy_settings"
     case menstrual           = "menstrual"
     case siteChanges         = "site_changes"
+    case features    = "features"
+    case mood = "mood"
 
     /// Default subpath per cadence (collections are always .../<subpath>/items)
     func defaultSubpath(for cadence: Cadence) -> String {
@@ -38,10 +40,14 @@ enum DataKind: String {
         case (.bodyMass, .hourly):          return "hourly"
         case (.restingHeartRate, .daily):   return "daily"
         case (.therapySettings, .hourly):   return "hourly"
-        case (.therapySettings, .event):  return "events"
+        case (.therapySettings, .event):    return "events"
         case (.menstrual, .daily):          return "daily"
         case (.siteChanges, .daily):        return "daily"
         case (.siteChanges, .event):        return "events"
+        case (.features, .hourly):         return "ml_feature_frames"
+        case (.mood, .event):              return "events"     // ← NEW
+        case (.mood, .hourly):             return "hourly"     // ← NEW
+            
         default:                             return cadence.rawValue
         }
     }
@@ -737,3 +743,86 @@ extension HealthDataUploader {
 }
 
 
+
+extension HealthDataUploader {
+    struct FeatureFrameHourlyRecord: StreamRecord {
+        static let kind: DataKind = .features        // ← was .bloodGlucose
+        static let cadence: Cadence = .hourly
+        static let subpathOverride: String? = "ml_feature_frames"
+
+        let f: FeatureFrameHourly
+        var documentId: String { isoHourId(f.hourStartUtc) }
+        var payload: [String: Any] {
+            var d: [String: Any] = ["hourStartUtc": isoHourId(f.hourStartUtc)]
+            // write only non-nil fields
+            func put(_ k: String, _ v: Any?) { if let v = v { d[k] = v } }
+            put("bg_avg", f.bg_avg); put("bg_tir", f.bg_tir)
+            put("bg_percentLow", f.bg_percentLow); put("bg_percentHigh", f.bg_percentHigh)
+            put("bg_uRoc", f.bg_uRoc); put("bg_deltaAvg7h", f.bg_deltaAvg7h); put("bg_zAvg7h", f.bg_zAvg7h)
+
+            put("hr_mean", f.hr_mean); put("hr_delta7h", f.hr_delta7h)
+            put("hr_z7h", f.hr_z7h); put("rhr_daily", f.rhr_daily)
+
+            put("kcal_active", f.kcal_active); put("kcal_active_last3h", f.kcal_active_last3h)
+            put("kcal_active_last6h", f.kcal_active_last6h)
+            put("kcal_active_delta7h", f.kcal_active_delta7h); put("kcal_active_z7h", f.kcal_active_z7h)
+
+            put("sleep_prev_total_min", f.sleep_prev_total_min)
+            put("sleep_debt_7d_min", f.sleep_debt_7d_min)
+            put("minutes_since_wake", f.minutes_since_wake)
+
+            put("ex_move_min", f.ex_move_min); put("ex_exercise_min", f.ex_exercise_min)
+            put("ex_min_last3h", f.ex_min_last3h); put("ex_hours_since", f.ex_hours_since)
+
+            put("days_since_period_start", f.days_since_period_start)
+            put("cycle_follicular", f.cycle_follicular)
+            put("cycle_ovulation", f.cycle_ovulation)
+            put("cycle_luteal", f.cycle_luteal)
+
+            put("days_since_site_change", f.days_since_site_change)
+            put("site_loc_current", f.site_loc_current)
+            put("site_loc_same_as_last", f.site_loc_same_as_last)
+            
+            put("mood_valence", f.mood_valence)
+            put("mood_arousal", f.mood_arousal)
+            put("mood_quad_posPos", f.mood_quad_posPos)
+            put("mood_quad_posNeg", f.mood_quad_posNeg)
+            put("mood_quad_negPos", f.mood_quad_negPos)
+            put("mood_quad_negNeg", f.mood_quad_negNeg)
+            put("mood_hours_since", f.mood_hours_since)
+            return d
+        }
+    }
+
+    func uploadFeatureFramesHourly(_ frames: [FeatureFrameHourly], onDone: (() -> Void)? = nil) {
+        guard !skipWrites, let up = currentUploader() else { onDone?(); return }
+        up.upsert(frames.map { FeatureFrameHourlyRecord(f: $0) }, label: "ml feature frames", completion: onDone)
+    }
+}
+
+
+
+
+extension HealthDataUploader {
+    func uploadMoodEvents(_ events: [MoodPoint], onDone: (() -> Void)? = nil) {
+        guard !skipWrites, let up = currentUploader() else { onDone?(); return }
+        let recs = events.map {
+            MoodEventRecord(id: uuidDocId(), timestamp: $0.timestamp, valence: $0.valence, arousal: $0.arousal)
+        }
+        up.upsert(recs, label: "mood events", completion: onDone)
+    }
+
+    func uploadMoodHourlyCtx(_ ctx: [Date: MoodCTX], onDone: (() -> Void)? = nil) {
+        guard !skipWrites, let up = currentUploader() else { onDone?(); return }
+        let recs = ctx.sorted { $0.key < $1.key }.map { (_, m) in
+            MoodHourlyCtxRecord(
+                hour: m.hourStartUtc,
+                valence: m.valence, arousal: m.arousal,
+                quad_posPos: m.quad_posPos, quad_posNeg: m.quad_posNeg,
+                quad_negPos: m.quad_negPos, quad_negNeg: m.quad_negNeg,
+                hoursSinceMood: m.hoursSinceMood
+            )
+        }
+        up.upsert(recs, label: "mood hourly ctx", completion: onDone)
+    }
+}
