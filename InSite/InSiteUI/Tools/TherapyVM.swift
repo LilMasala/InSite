@@ -15,6 +15,10 @@ final class TherapyVM: ObservableObject {
     @Published private(set) var currentISF: Double = 0
     @Published private(set) var currentCarbRatio: Double = 0
     @Published private(set) var currentProfileName: String = "—"
+    
+    @Published private(set) var sparklineBasal: [Double]? = nil
+    @Published private(set) var sparklineISF:   [Double]? = nil
+    @Published private(set) var sparklineCR:    [Double]? = nil
 
     private let store = ProfileDataStore()
     private var timerCancellable: AnyCancellable?
@@ -41,16 +45,31 @@ final class TherapyVM: ObservableObject {
         if let fgObserver { NotificationCenter.default.removeObserver(fgObserver) }
     }
 
-    // MARK: - Loading & selection
+    
+    private func updateSparklines() {
+        guard let p = activeProfile else {
+            sparklineBasal = nil; sparklineISF = nil; sparklineCR = nil
+            return
+        }
+        // Sort by start hour so the sparkline flows left→right in time
+        let ranges = p.hourRanges.sorted { $0.startHour < $1.startHour }
+
+        // Use the range values directly (the tile normalizes them)
+        sparklineBasal = ranges.map { $0.basalRate }
+        sparklineISF   = ranges.map { $0.insulinSensitivity }
+        sparklineCR    = ranges.map { $0.carbRatio }
+    }
+
     func reload() {
         profiles = store.loadProfiles()
         if let id = store.loadActiveProfileID(),
            let p = profiles.first(where: { $0.id == id }) {
             activeProfile = p
+            recompute() // your existing method that sets currentHourRange, currentBasal, etc.
         } else {
-            activeProfile = profiles.first
+            activeProfile = nil
         }
-        recompute()
+        updateSparklines()
     }
 
     func selectProfile(id: String) {

@@ -2,6 +2,7 @@ import Foundation
 import HealthKit
 import HealthKitUI
 import SwiftUI
+import Combine
 
 //Home Screen
 
@@ -34,6 +35,24 @@ struct Pressable: ViewModifier {
             )
     }
 }
+
+private struct InnerWindow<Content: View>: View {
+    var diameter: CGFloat
+    var insetFactor: CGFloat = 0.72   // 72% of circle width; tweak 0.70–0.78
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        let w = diameter * insetFactor
+        VStack(spacing: 6) {
+            content
+        }
+        .multilineTextAlignment(.center)
+        .frame(width: w, height: w * 0.72, alignment: .center)   // rectangle “window”
+        .padding(.horizontal, 2)
+    }
+}
+
+
 
 
 private struct MoodCTAOrb: View {
@@ -88,6 +107,311 @@ private struct MoodCTAOrb: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 }
+
+
+
+
+
+// MARK: - Therapy Carousel Tile
+
+struct TherapyCarouselTile: View {
+    enum Metric: Int, CaseIterable { case basal, isf, cr }
+
+    var activeRange: HourRange?
+    var accent: Color
+
+    // Current values
+    var basalUph: Double
+    var isf: Double
+    var carbRatio: Double
+
+    // Optional 3–7 point day-patterns for tiny sparklines (normalized in-view)
+    var basalPattern: [Double]? = nil
+    var isfPattern: [Double]? = nil
+    var crPattern: [Double]? = nil
+
+    
+
+    // Layout
+    @ScaledMetric private var diameter: CGFloat = 140
+    @ScaledMetric private var ringStroke: CGFloat = 8
+    @ScaledMetric private var trackStroke: CGFloat = 10
+    @ScaledMetric private var nowDot: CGFloat = 6
+    @ScaledMetric private var pieInset: CGFloat = 18
+
+    // Carousel state
+    @State private var index: Int = 0
+    @State private var dragOffset: CGFloat = 0
+    @State private var lastInteraction: Date = Date()
+    @State private var autoAdvanceTick: Int = 0
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var currentHour: Int {
+        Calendar.current.component(.hour, from: Date())
+    }
+
+    private var currentMetric: Metric {
+        Metric.allCases[index % Metric.allCases.count]
+    }
+
+    var body: some View {
+        CircleTileBase(diameter: diameter) {
+            ZStack {
+                // Track ring
+                Circle().stroke(Color.primary.opacity(0.08), lineWidth: trackStroke)
+
+                // Active window arc
+                if let r = activeRange {
+                    TherapyArc(range: r)
+                        .stroke(
+                            LinearGradient(colors: [accent.opacity(0.85), accent.opacity(0.45)],
+                                           startPoint: .leading, endPoint: .trailing),
+                            style: StrokeStyle(lineWidth: ringStroke, lineCap: .round)
+                        )
+                        .frame(width: diameter * 0.78, height: diameter * 0.78)
+                }
+
+//
+                let innerW = diameter * 0.74     // safe width inside ring
+                let innerH = diameter * 0.62     // safe height; tweak 0.58–0.66
+
+                VStack(spacing: 8) {
+
+                  // Slide content (title + value+unit)
+                  SlideStack(index: $index, dragOffset: $dragOffset, reduceMotion: reduceMotion) {
+                    ForEach(Array(Metric.allCases.enumerated()), id: \.offset) { _, m in
+                      VStack(spacing: 6) {
+                        Text(title(for: m))
+                          .font(.caption2.weight(.semibold))
+                          .foregroundStyle(.secondary)
+                          .lineLimit(1)
+
+                        HStack(spacing: 6) {
+                          Text(value(for: m))
+                            .font(.title3.weight(.semibold))
+                            .minimumScaleFactor(0.75)
+                          Text(unit(for: m))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .baselineOffset(2)
+                        }
+                        .lineLimit(1)
+                      }
+                      .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                  }
+                  .simultaneousGesture(swipeGesture)   // don’t block NavigationLink
+                  .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: index)
+
+                  // Dots
+                  HStack(spacing: 8) {
+                    ForEach(0..<Metric.allCases.count, id: \.self) { i in
+                      IndicatorDot(active: i == index, accent: accent)
+                    }
+                  }
+                  .padding(.bottom, 2) // tiny air above ring
+                }
+                .frame(width: innerW, height: innerH)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+        .onAppear {
+            lastInteraction = Date()
+        }
+        .onReceive(timer) { _ in
+            guard !reduceMotion else { return }
+            // Pause auto-advance ~7s after last interaction
+            if Date().timeIntervalSince(lastInteraction) >= 7 {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    index = (index + 1) % Metric.allCases.count
+                }
+            }
+            autoAdvanceTick &+= 1
+        }
+    }
+
+    // MARK: - Timer (every ~3.7s)
+    private var timer: Publishers.Autoconnect<Timer.TimerPublisher> {
+        Timer.publish(every: 3.7, on: .main, in: .common).autoconnect()
+    }
+
+    // MARK: - Swipe
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 10, coordinateSpace: .local)
+            .onChanged { v in
+                dragOffset = v.translation.width
+            }
+            .onEnded { v in
+                defer {
+                    dragOffset = 0
+                    lastInteraction = Date() // pause auto-advance
+                }
+                let threshold: CGFloat = 40
+                if v.translation.width < -threshold {
+                    withAnimation(.easeInOut(duration: reduceMotion ? 0 : 0.18)) {
+                        index = (index + 1) % Metric.allCases.count
+                    }
+                } else if v.translation.width > threshold {
+                    withAnimation(.easeInOut(duration: reduceMotion ? 0 : 0.18)) {
+                        index = (index - 1 + Metric.allCases.count) % Metric.allCases.count
+                    }
+                }
+            }
+    }
+
+    // MARK: - Helpers
+    private func value(for metric: Metric) -> String {
+        switch metric {
+        case .basal: return String(format: "%.2f", basalUph)
+        case .isf:   return String(format: "%.0f", isf)
+        case .cr:    return String(format: "%.1f", carbRatio)
+        }
+    }
+    private func unit(for metric: Metric) -> String {
+        switch metric {
+        case .basal: return "U/hr"
+        case .isf:   return "mg/dL/U"
+        case .cr:    return "g/U"
+        }
+    }
+    private func title(for metric: Metric) -> String {
+        switch metric {
+        case .basal: return "Basal now"
+        case .isf:   return "ISF now"
+        case .cr:    return "CR now"
+        }
+    }
+    private func sparkline(for metric: Metric) -> [Double]? {
+        switch metric {
+        case .basal: return normalized(basalPattern)
+        case .isf:   return normalized(isfPattern)
+        case .cr:    return normalized(crPattern)
+        }
+    }
+    private func normalized(_ arr: [Double]?) -> [Double]? {
+        guard let arr, arr.count >= 3 else { return nil }
+        let minV = arr.min() ?? 0, maxV = arr.max() ?? 1
+        let denom = max(maxV - minV, .leastNonzeroMagnitude)
+        return arr.map { ($0 - minV) / denom }
+    }
+
+    private var accessibilityLabel: String {
+        let m = currentMetric
+        let valueText = value(for: m) + " " + unit(for: m)
+        if let r = activeRange {
+            return "Therapy. \(title(for: m)), \(valueText). Active \(fmt(r.startHour))–\(fmt(r.endHour))."
+        } else {
+            return "Therapy. \(title(for: m)), \(valueText)."
+        }
+    }
+    private func fmt(_ h: Int) -> String {
+        let hour = ((h % 24) + 24) % 24
+        let f = DateFormatter(); f.dateFormat = "h a"
+        var comp = DateComponents(); comp.hour = hour
+        let cal = Calendar(identifier: .gregorian)
+        return f.string(from: cal.date(from: comp) ?? Date())
+    }
+}
+
+// MARK: - Slide view
+// Update SlideView signature
+private struct SlideView: View {
+    var metric: TherapyCarouselTile.Metric
+    var value: String
+    var unit: String
+    var title: String
+    var accent: Color
+    var sparkline: [Double]?
+    var innerDiameter: CGFloat   // ← new
+
+    var body: some View {
+        InnerWindow(diameter: innerDiameter) {   // ← use passed size
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            HStack(spacing: 6) {
+                Text(value).font(.title3.weight(.semibold))
+                    .minimumScaleFactor(0.7)
+                Text(unit).font(.caption2).foregroundStyle(.secondary)
+                    .baselineOffset(2)
+            }
+            .lineLimit(1)
+
+            if let spark = sparkline, spark.count > 1 {
+                Sparkline(points: spark)
+                    .stroke(accent.opacity(0.55),
+                            style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                    .frame(height: 14)
+                    .padding(.top, 2)
+            } else {
+                Color.clear.frame(height: 14).padding(.top, 2)
+            }
+        }
+        .padding(.bottom, 4) // a little extra lift off the ring
+    }
+}
+
+
+// MARK: - SlideStack (simple pager with drag offset)
+
+private struct SlideStack<Content: View>: View {
+    @Binding var index: Int
+    @Binding var dragOffset: CGFloat
+    var reduceMotion: Bool
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            HStack(spacing: 0) {
+                content()
+                    .frame(width: width)
+            }
+            .offset(x: -CGFloat(index) * width + dragOffset)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: index)
+            .animation(reduceMotion ? nil : .interactiveSpring(response: 0.25, dampingFraction: 0.9), value: dragOffset)
+        }
+        .clipped()
+    }
+}
+
+// MARK: - Indicator
+
+private struct IndicatorDot: View {
+    var active: Bool
+    var accent: Color
+    var body: some View {
+        Circle()
+            .fill(active ? accent.opacity(0.95) : accent.opacity(0.25))
+            .frame(width: 6, height: 6)
+    }
+}
+
+// MARK: - Sparkline Shape (0...1 points)
+
+private struct Sparkline: Shape {
+    var points: [Double]
+    func path(in rect: CGRect) -> Path {
+        guard points.count > 1 else { return Path() }
+        var p = Path()
+        let stepX = rect.width / CGFloat(points.count - 1)
+        let ys = points.map { rect.height * (1 - CGFloat($0)) } // invert (0 at bottom)
+        p.move(to: CGPoint(x: 0, y: ys[0]))
+        for i in 1..<points.count {
+            p.addLine(to: CGPoint(x: CGFloat(i) * stepX, y: ys[i]))
+        }
+        return p
+    }
+}
+
+
+
+
+
 
 
 struct ActivityItem: Identifiable {
@@ -199,7 +523,8 @@ struct HomeScreen: View {
     // Models
     @ObservedObject private var site = SiteChangeData.shared
     
-    @State private var therapyVM = TherapyVM()
+    @StateObject private var therapyVM = TherapyVM()
+
     
     @State private var lastSyncText = "Synced recently"
     @State private var therapySummary = "Profile 1 · Basal 0.9–1.1"
@@ -236,16 +561,29 @@ struct HomeScreen: View {
 //                                                            .pressable()
                                                         }
                             .buttonStyle(.plain)
+                            
+                            // Community (board + crosswords)
+                            NavigationLink {
+                                CommunityHub()   // ← no accent param now
+                            } label: {
+                                CommunityTile(accent: theme.accent).floatAndPulse(seed: 0.21)
+                            }
+                            .buttonStyle(.plain)
+
+
 
                             // Therapy (24h ticks + active window hint)
                             NavigationLink { TherapySettings() } label: {
-                                TherapyTile(
-                                    activeRange: therapyVM.currentHourRange,
-                                    accent: theme.accent,
-                                    basalUph: therapyVM.currentBasal,
-                                    isf: therapyVM.currentISF,
-                                    carbRatio: therapyVM.currentCarbRatio
-                                )
+                                TherapyCarouselTile(
+                                        activeRange: therapyVM.currentHourRange,
+                                        accent: theme.accent,
+                                        basalUph: therapyVM.currentBasal,
+                                        isf: therapyVM.currentISF,
+                                        carbRatio: therapyVM.currentCarbRatio,
+                                        basalPattern: therapyVM.sparklineBasal,   // optional: [Double]? or nil
+                                        isfPattern: therapyVM.sparklineISF,       // optional: [Double]? or nil
+                                        crPattern: therapyVM.sparklineCR          // optional: [Double]? or nil
+                                    )
                                 .floatAndPulse(seed: 0.57)
                             }
                             .buttonStyle(.plain)
@@ -363,6 +701,12 @@ private struct HeroHeader: View {
     }
 }
 
+
+
+
+
+
+
 // MARK: - SITE CHANGE TILE (countdown ring)
 
 private struct SiteChangeTile: View {
@@ -401,14 +745,25 @@ private struct SiteChangeTile: View {
                     )
                     .rotationEffect(.degrees(reduceMotion ? 0 : rotation))
 
-                VStack(spacing: 4) {
+                InnerWindow(diameter: diameter) {
+                    Text("Days Since")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
                     Text("\(daysSince)")
                         .font(.system(.largeTitle, design: .rounded).weight(.semibold))
-                    Text("days since")
-                        .font(.footnote).foregroundStyle(.secondary)
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
+
                     if !location.isEmpty {
-                        Text(location).font(.caption).foregroundStyle(.secondary)
-                            .lineLimit(1).minimumScaleFactor(0.8)
+                        Text(location)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .truncationMode(.tail)
+                            .layoutPriority(1)
                     }
                 }
                 .padding(.horizontal, 8)
@@ -425,138 +780,6 @@ private struct SiteChangeTile: View {
     }
 }
 
-// MARK: - THERAPY TILE (24h ticks + active window)
-
-private struct TherapyTile: View {
-        var activeRange: HourRange?
-        var accent: Color
-
-        // current values you want to display
-        var basalUph: Double      // U/hr
-        var isf: Double           // mg/dL per U
-        var carbRatio: Double     // g/U
-
-        @ScaledMetric private var diameter: CGFloat = 140
-        @ScaledMetric private var ringStroke: CGFloat = 8
-        @ScaledMetric private var trackStroke: CGFloat = 10
-        @ScaledMetric private var nowDot: CGFloat = 6
-        @ScaledMetric private var pieInset: CGFloat = 18
-
-        private var currentHour: Int {
-            Calendar.current.component(.hour, from: Date())
-        }
-
-        // --- PIE math (simple proportion; units differ so this is “feel”, not analytic)
-        private var pieSlices: [(start: Angle, end: Angle, color: Color, label: String)] {
-            let v1 = max(0, basalUph)
-            let v2 = max(0, isf)
-            let v3 = max(0, carbRatio)
-            let total = max(v1 + v2 + v3, .leastNonzeroMagnitude)
-
-            // cumulative angles
-            let a1 = 360.0 * (v1 / total)
-            let a2 = 360.0 * (v2 / total)
-            let a3 = 360.0 * (v3 / total)
-
-            // start at -90° (12 o’clock) so it feels clock-aligned
-            let s0 = -90.0
-            let s1 = s0 + a1
-            let s2 = s1 + a2
-            let s3 = s2 + a3
-
-            let c1 = accent.opacity(0.90)
-            let c2 = accent.opacity(0.65)
-            let c3 = accent.opacity(0.40)
-
-            return [
-                (start: .degrees(s0), end: .degrees(s1), color: c1, label: "Basal"),
-                (start: .degrees(s1), end: .degrees(s2), color: c2, label: "ISF"),
-                (start: .degrees(s2), end: .degrees(s3), color: c3, label: "CR")
-            ]
-        }
-
-        var body: some View {
-            CircleTileBase(diameter: diameter) {
-                ZStack {
-                    // Track ring
-                    Circle()
-                        .stroke(Color.primary.opacity(0.08), lineWidth: trackStroke)
-
-                    // Active window arc
-                    if let r = activeRange {
-                        TherapyArc(range: r)
-                            .stroke(
-                                LinearGradient(
-                                    colors: [accent.opacity(0.85), accent.opacity(0.45)],
-                                    startPoint: .leading, endPoint: .trailing
-                                ),
-                                style: StrokeStyle(lineWidth: ringStroke, lineCap: .round)
-                            )
-                            .frame(width: diameter * 0.78, height: diameter * 0.78)
-                    }
-
-                    // "Now" marker
-                    NowMarker(hour: currentHour)
-                        .fill(accent.opacity(0.95))
-                        .frame(width: nowDot, height: nowDot)
-                        .offset(y: -diameter * 0.39)
-
-                    // Inner pie
-                    GeometryReader { geo in
-                        let size = min(geo.size.width, geo.size.height)
-                        ZStack {
-                            ForEach(0..<pieSlices.count, id: \.self) { i in
-                                let s = pieSlices[i]
-                                PieSlice(startAngle: s.start, endAngle: s.end)
-                                    .fill(s.color)
-                            }
-                        }
-                        .padding(pieInset)
-                        .frame(width: size, height: size)
-                    }
-
-                    // Center readout + legend
-                    VStack(spacing: 6) {
-                        // Big center number: show basal prominently
-                        Text("\(basalUph, specifier: "%.2f")")
-                            .font(.title3.weight(.semibold))
-                        Text("U/hr")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-
-                        // Compact legend row
-                        HStack(spacing: 10) {
-                            LegendDot(color: accent.opacity(0.90)); Text("B \(basalUph, specifier: "%.2f")").font(.caption2)
-                            LegendDot(color: accent.opacity(0.65)); Text("ISF \(isf, specifier: "%.0f")").font(.caption2)
-                            LegendDot(color: accent.opacity(0.40)); Text("CR \(carbRatio, specifier: "%.1f")").font(.caption2)
-                        }
-                        .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(accessibilityLabel)
-        }
-
-        private var accessibilityLabel: String {
-            var parts = ["Therapy."]
-            if let r = activeRange {
-                parts.append("Active \(fmt(r.startHour))–\(fmt(r.endHour)).")
-            }
-            parts.append("Basal \(String(format: "%.2f", basalUph)) U per hour.")
-            parts.append("ISF \(String(format: "%.0f", isf)) mg/dL per unit.")
-            parts.append("Carb ratio \(String(format: "%.1f", carbRatio)) grams per unit.")
-            return parts.joined(separator: " ")
-        }
-
-        private func fmt(_ h: Int) -> String {
-            let hour = ((h % 24) + 24) % 24
-            let f = DateFormatter(); f.dateFormat = "HH:mm"
-            var comp = DateComponents(); comp.hour = hour
-            let cal = Calendar(identifier: .gregorian)
-            return f.string(from: cal.date(from: comp) ?? Date())
-        }
-    }
 
     // MARK: - Shapes & tiny views
 
@@ -671,7 +894,7 @@ private struct SyncTile: View {
 
 // MARK: - BUILDING BLOCKS
 
-private struct CircleTileBase<Content: View>: View {
+struct CircleTileBase<Content: View>: View {
     @ScaledMetric private var pad: CGFloat = 14
     @ScaledMetric private var corner: CGFloat = 24
     var diameter: CGFloat
@@ -694,7 +917,7 @@ private struct CircleTileBase<Content: View>: View {
     }
 }
 
-struct Card<Inner: View>: View {
+fileprivate struct Card<Inner: View>: View {
     @ScaledMetric private var corner: CGFloat = 16
     @ScaledMetric private var pad: CGFloat = 14
     @ViewBuilder var content: Inner

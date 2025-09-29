@@ -25,6 +25,20 @@
 		D441B9BA2B729204005E5D79 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D441B9B92B729204005E5D79 /* Profile.swift */; };
 		D452A1252B325E9D00F66085 /* Menstrual_Data.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452A1242B325E9D00F66085 /* Menstrual_Data.swift */; };
 		D452A1272B32630900F66085 /* HealthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452A1262B32630900F66085 /* HealthStore.swift */; };
+		D452CA982E8AF16A0083BBF4 /* CommunityModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CA972E8AF16A0083BBF4 /* CommunityModels.swift */; };
+		D452CA992E8AF16A0083BBF4 /* CommunityModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CA972E8AF16A0083BBF4 /* CommunityModels.swift */; };
+		D452CA9B2E8AF17D0083BBF4 /* CommunityHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CA9A2E8AF17D0083BBF4 /* CommunityHub.swift */; };
+		D452CA9C2E8AF17D0083BBF4 /* CommunityHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CA9A2E8AF17D0083BBF4 /* CommunityHub.swift */; };
+		D452CA9E2E8AF19A0083BBF4 /* CommunityBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CA9D2E8AF19A0083BBF4 /* CommunityBoard.swift */; };
+		D452CA9F2E8AF19A0083BBF4 /* CommunityBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CA9D2E8AF19A0083BBF4 /* CommunityBoard.swift */; };
+		D452CAA12E8AF1A50083BBF4 /* CommunityBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAA02E8AF1A50083BBF4 /* CommunityBoardView.swift */; };
+		D452CAA22E8AF1A50083BBF4 /* CommunityBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAA02E8AF1A50083BBF4 /* CommunityBoardView.swift */; };
+		D452CAA42E8AF1AF0083BBF4 /* CrosswordsHome.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAA32E8AF1AF0083BBF4 /* CrosswordsHome.swift */; };
+		D452CAA52E8AF1AF0083BBF4 /* CrosswordsHome.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAA32E8AF1AF0083BBF4 /* CrosswordsHome.swift */; };
+		D452CAA72E8AF1B80083BBF4 /* CrosswordMakerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAA62E8AF1B80083BBF4 /* CrosswordMakerView.swift */; };
+		D452CAA82E8AF1B80083BBF4 /* CrosswordMakerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAA62E8AF1B80083BBF4 /* CrosswordMakerView.swift */; };
+		D452CAAD2E8B16380083BBF4 /* DailyCrosswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAAC2E8B16380083BBF4 /* DailyCrosswordView.swift */; };
+		D452CAAE2E8B16380083BBF4 /* DailyCrosswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAAC2E8B16380083BBF4 /* DailyCrosswordView.swift */; };
 		D457CC932C41AD3F00A0934E /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = D457CC922C41AD3F00A0934E /* FirebaseAnalytics */; };
 		D457CC952C41AD3F00A0934E /* FirebaseAnalyticsOnDeviceConversion in Frameworks */ = {isa = PBXBuildFile; productRef = D457CC942C41AD3F00A0934E /* FirebaseAnalyticsOnDeviceConversion */; };
 		D457CC972C41AD3F00A0934E /* FirebaseAnalyticsSwift in Frameworks */ = {isa = PBXBuildFile; productRef = D457CC962C41AD3F00A0934E /* FirebaseAnalyticsSwift */; };
@@ -67,7 +81,6 @@
 		D466C9072D1DF67E00E9CE68 /* SignInEmailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D466C9062D1DF67E00E9CE68 /* SignInEmailViewModel.swift */; };
 		D466C90A2D1DF8FB00E9CE68 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D466C9092D1DF8FB00E9CE68 /* ProfileView.swift */; };
 		D46885C62D70FA5900A8EF61 /* UserManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46885C52D70FA5900A8EF61 /* UserManager.swift */; };
-		D46BEDD82E842CBB00937E29 /* HomeScreenDepracated.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDD72E842CBB00937E29 /* HomeScreenDepracated.swift */; };
 		D46BEDDA2E84338C00937E29 /* MoodPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDD92E84338C00937E29 /* MoodPicker.swift */; };
 		D46BEDDB2E84338C00937E29 /* MoodPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDD92E84338C00937E29 /* MoodPicker.swift */; };
 		D46BEDDD2E843D8200937E29 /* TherapyVM.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDDC2E843D8200937E29 /* TherapyVM.swift */; };
@@ -80,7 +93,8 @@
 		D46BEDE72E84454600937E29 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDE52E84454600937E29 /* FlowLayout.swift */; };
 		D46BEDE92E8446EC00937E29 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDE82E8446EC00937E29 /* ThemeManager.swift */; };
 		D46BEDEA2E8446EC00937E29 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDE82E8446EC00937E29 /* ThemeManager.swift */; };
-		D48725772B94FA6300DEBAE2 /* TherapySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48725762B94FA6300DEBAE2 /* TherapySettings.swift */; };
+		D487C7352E8AC32F001C34EF /* TherapySettingsV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = D487C7342E8AC32F001C34EF /* TherapySettingsV2.swift */; };
+		D487C7362E8AC32F001C34EF /* TherapySettingsV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = D487C7342E8AC32F001C34EF /* TherapySettingsV2.swift */; };
 		D48D78AD2E7102D0007DFA5C /* TherapySettingsLogManager2.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48D78AC2E7102D0007DFA5C /* TherapySettingsLogManager2.swift */; };
 		D48D78AE2E7102D0007DFA5C /* TherapySettingsLogManager2.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48D78AC2E7102D0007DFA5C /* TherapySettingsLogManager2.swift */; };
 		D4991E702E4677D800178EC3 /* HealthDataUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */; };
@@ -136,6 +150,13 @@
 		D452A1242B325E9D00F66085 /* Menstrual_Data.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Menstrual_Data.swift; sourceTree = "<group>"; };
 		D452A1262B32630900F66085 /* HealthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthStore.swift; sourceTree = "<group>"; };
 		D452A1282B32665300F66085 /* InSite.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = InSite.entitlements; sourceTree = "<group>"; };
+		D452CA972E8AF16A0083BBF4 /* CommunityModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityModels.swift; sourceTree = "<group>"; };
+		D452CA9A2E8AF17D0083BBF4 /* CommunityHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityHub.swift; sourceTree = "<group>"; };
+		D452CA9D2E8AF19A0083BBF4 /* CommunityBoard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityBoard.swift; sourceTree = "<group>"; };
+		D452CAA02E8AF1A50083BBF4 /* CommunityBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityBoardView.swift; sourceTree = "<group>"; };
+		D452CAA32E8AF1AF0083BBF4 /* CrosswordsHome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrosswordsHome.swift; sourceTree = "<group>"; };
+		D452CAA62E8AF1B80083BBF4 /* CrosswordMakerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrosswordMakerView.swift; sourceTree = "<group>"; };
+		D452CAAC2E8B16380083BBF4 /* DailyCrosswordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyCrosswordView.swift; sourceTree = "<group>"; };
 		D46438122B2A3FD0005566A3 /* InSite.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InSite.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D46438152B2A3FD0005566A3 /* InSiteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InSiteApp.swift; sourceTree = "<group>"; };
 		D46438172B2A3FD0005566A3 /* HomeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreen.swift; sourceTree = "<group>"; };
@@ -154,14 +175,13 @@
 		D466C9062D1DF67E00E9CE68 /* SignInEmailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInEmailViewModel.swift; sourceTree = "<group>"; };
 		D466C9092D1DF8FB00E9CE68 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		D46885C52D70FA5900A8EF61 /* UserManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserManager.swift; sourceTree = "<group>"; };
-		D46BEDD72E842CBB00937E29 /* HomeScreenDepracated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreenDepracated.swift; sourceTree = "<group>"; };
 		D46BEDD92E84338C00937E29 /* MoodPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoodPicker.swift; sourceTree = "<group>"; };
 		D46BEDDC2E843D8200937E29 /* TherapyVM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TherapyVM.swift; sourceTree = "<group>"; };
 		D46BEDDF2E843F0000937E29 /* FloatPulseModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatPulseModifier.swift; sourceTree = "<group>"; };
 		D46BEDE22E843F8900937E29 /* PeekContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeekContainer.swift; sourceTree = "<group>"; };
 		D46BEDE52E84454600937E29 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowLayout.swift; sourceTree = "<group>"; };
 		D46BEDE82E8446EC00937E29 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
-		D48725762B94FA6300DEBAE2 /* TherapySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TherapySettings.swift; sourceTree = "<group>"; };
+		D487C7342E8AC32F001C34EF /* TherapySettingsV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TherapySettingsV2.swift; sourceTree = "<group>"; };
 		D48D78AC2E7102D0007DFA5C /* TherapySettingsLogManager2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TherapySettingsLogManager2.swift; sourceTree = "<group>"; };
 		D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDataFetcher.swift; sourceTree = "<group>"; };
 		D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDataUploader.swift; sourceTree = "<group>"; };
@@ -243,6 +263,44 @@
 			path = Classes;
 			sourceTree = "<group>";
 		};
+		D452CA942E8AF0E00083BBF4 /* Community */ = {
+			isa = PBXGroup;
+			children = (
+				D452CA972E8AF16A0083BBF4 /* CommunityModels.swift */,
+				D452CA9D2E8AF19A0083BBF4 /* CommunityBoard.swift */,
+				D452CAA02E8AF1A50083BBF4 /* CommunityBoardView.swift */,
+				D452CAA32E8AF1AF0083BBF4 /* CrosswordsHome.swift */,
+				D452CAA62E8AF1B80083BBF4 /* CrosswordMakerView.swift */,
+				D452CAAC2E8B16380083BBF4 /* DailyCrosswordView.swift */,
+				D452CA9A2E8AF17D0083BBF4 /* CommunityHub.swift */,
+			);
+			path = Community;
+			sourceTree = "<group>";
+		};
+		D452CA952E8AF0E90083BBF4 /* Tools */ = {
+			isa = PBXGroup;
+			children = (
+				D46BEDE82E8446EC00937E29 /* ThemeManager.swift */,
+				D46BEDDF2E843F0000937E29 /* FloatPulseModifier.swift */,
+				D46BEDE22E843F8900937E29 /* PeekContainer.swift */,
+				D46BEDD92E84338C00937E29 /* MoodPicker.swift */,
+				D46BEDE52E84454600937E29 /* FlowLayout.swift */,
+				D46BEDDC2E843D8200937E29 /* TherapyVM.swift */,
+			);
+			path = Tools;
+			sourceTree = "<group>";
+		};
+		D452CA962E8AF1440083BBF4 /* MainViews */ = {
+			isa = PBXGroup;
+			children = (
+				D487C7342E8AC32F001C34EF /* TherapySettingsV2.swift */,
+				D46438172B2A3FD0005566A3 /* HomeScreen.swift */,
+				D46438152B2A3FD0005566A3 /* InSiteApp.swift */,
+				D46438412B2B5A57005566A3 /* SiteChangeUI.swift */,
+			);
+			path = MainViews;
+			sourceTree = "<group>";
+		};
 		D46438092B2A3FD0005566A3 = {
 			isa = PBXGroup;
 			children = (
@@ -312,17 +370,9 @@
 		D464383F2B2B5A20005566A3 /* InSiteUI */ = {
 			isa = PBXGroup;
 			children = (
-				D48725762B94FA6300DEBAE2 /* TherapySettings.swift */,
-				D46438172B2A3FD0005566A3 /* HomeScreen.swift */,
-				D46BEDE82E8446EC00937E29 /* ThemeManager.swift */,
-				D46BEDE52E84454600937E29 /* FlowLayout.swift */,
-				D46BEDE22E843F8900937E29 /* PeekContainer.swift */,
-				D46BEDDF2E843F0000937E29 /* FloatPulseModifier.swift */,
-				D46BEDDC2E843D8200937E29 /* TherapyVM.swift */,
-				D46BEDD92E84338C00937E29 /* MoodPicker.swift */,
-				D46BEDD72E842CBB00937E29 /* HomeScreenDepracated.swift */,
-				D46438152B2A3FD0005566A3 /* InSiteApp.swift */,
-				D46438412B2B5A57005566A3 /* SiteChangeUI.swift */,
+				D452CA962E8AF1440083BBF4 /* MainViews */,
+				D452CA952E8AF0E90083BBF4 /* Tools */,
+				D452CA942E8AF0E00083BBF4 /* Community */,
 			);
 			path = InSiteUI;
 			sourceTree = "<group>";
@@ -598,8 +648,14 @@
 				D441B9AF2B6C1969005E5D79 /* DataManager.swift in Sources */,
 				D48D78AD2E7102D0007DFA5C /* TherapySettingsLogManager2.swift in Sources */,
 				D4DC335C2BD742E600767AF2 /* RestingHeartRate.swift in Sources */,
+				D452CAAD2E8B16380083BBF4 /* DailyCrosswordView.swift in Sources */,
+				D487C7352E8AC32F001C34EF /* TherapySettingsV2.swift in Sources */,
+				D452CA9F2E8AF19A0083BBF4 /* CommunityBoard.swift in Sources */,
 				D46BEDDD2E843D8200937E29 /* TherapyVM.swift in Sources */,
+				D452CAA42E8AF1AF0083BBF4 /* CrosswordsHome.swift in Sources */,
+				D452CAA22E8AF1A50083BBF4 /* CommunityBoardView.swift in Sources */,
 				D466C9042D1DF62500E9CE68 /* AuthenticationViewModel.swift in Sources */,
+				D452CA9C2E8AF17D0083BBF4 /* CommunityHub.swift in Sources */,
 				D4CF03A52C9B380F004CD1D3 /* Utilities.swift in Sources */,
 				D4991E762E4677D800178EC3 /* HealthDataUploader.swift in Sources */,
 				D4991E772E4677D800178EC3 /* HealthDataFetcher.swift in Sources */,
@@ -608,8 +664,8 @@
 				D441B9AD2B6C14C6005E5D79 /* CaloriesBurned_Data.swift in Sources */,
 				D46BEDE32E843F8900937E29 /* PeekContainer.swift in Sources */,
 				D46BEDE62E84454600937E29 /* FlowLayout.swift in Sources */,
+				D452CA992E8AF16A0083BBF4 /* CommunityModels.swift in Sources */,
 				D46BEDE92E8446EC00937E29 /* ThemeManager.swift in Sources */,
-				D46BEDD82E842CBB00937E29 /* HomeScreenDepracated.swift in Sources */,
 				D452A1272B32630900F66085 /* HealthStore.swift in Sources */,
 				D466C90A2D1DF8FB00E9CE68 /* ProfileView.swift in Sources */,
 				D441B9A92B6C14A8005E5D79 /* BodyMass_Data.swift in Sources */,
@@ -618,7 +674,6 @@
 				D400F84E2C2B5A79002E09B7 /* BG_Data.swift in Sources */,
 				D46BEDE02E843F0000937E29 /* FloatPulseModifier.swift in Sources */,
 				D46438442B2B5A74005566A3 /* SiteChangeData.swift in Sources */,
-				D48725772B94FA6300DEBAE2 /* TherapySettings.swift in Sources */,
 				D46885C62D70FA5900A8EF61 /* UserManager.swift in Sources */,
 				D466C9072D1DF67E00E9CE68 /* SignInEmailViewModel.swift in Sources */,
 				D46438422B2B5A57005566A3 /* SiteChangeUI.swift in Sources */,
@@ -630,6 +685,7 @@
 				D400F84C2C2A0DD3002E09B7 /* BloodGlucose_Data.swift in Sources */,
 				D441B9A32B6C12B7005E5D79 /* HeartRate_Data.swift in Sources */,
 				D441B9A72B6C1428005E5D79 /* Exercise_Data.swift in Sources */,
+				D452CAA72E8AF1B80083BBF4 /* CrosswordMakerView.swift in Sources */,
 				D438BE032C9277A700C375BF /* SignInEmailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -639,14 +695,22 @@
 			buildActionMask = 2147483647;
 			files = (
 				D46BEDDE2E843D8200937E29 /* TherapyVM.swift in Sources */,
+				D452CA982E8AF16A0083BBF4 /* CommunityModels.swift in Sources */,
 				D46BEDE12E843F0000937E29 /* FloatPulseModifier.swift in Sources */,
 				D48D78AE2E7102D0007DFA5C /* TherapySettingsLogManager2.swift in Sources */,
 				D46438272B2A3FD1005566A3 /* InSiteTests.swift in Sources */,
 				D4991E732E4677D800178EC3 /* HealthDataUploader.swift in Sources */,
 				D4991E742E4677D800178EC3 /* HealthDataFetcher.swift in Sources */,
 				D46BEDDB2E84338C00937E29 /* MoodPicker.swift in Sources */,
+				D452CAA52E8AF1AF0083BBF4 /* CrosswordsHome.swift in Sources */,
 				D46BEDE72E84454600937E29 /* FlowLayout.swift in Sources */,
+				D452CAAE2E8B16380083BBF4 /* DailyCrosswordView.swift in Sources */,
+				D452CAA82E8AF1B80083BBF4 /* CrosswordMakerView.swift in Sources */,
+				D487C7362E8AC32F001C34EF /* TherapySettingsV2.swift in Sources */,
 				D46BEDE42E843F8900937E29 /* PeekContainer.swift in Sources */,
+				D452CAA12E8AF1A50083BBF4 /* CommunityBoardView.swift in Sources */,
+				D452CA9E2E8AF19A0083BBF4 /* CommunityBoard.swift in Sources */,
+				D452CA9B2E8AF17D0083BBF4 /* CommunityHub.swift in Sources */,
 				D4991E752E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */,
 				D46BEDEA2E8446EC00937E29 /* ThemeManager.swift in Sources */,
 			);

@@ -31,125 +31,142 @@ struct LastExerciseData {
 
 extension HealthStore {
     
-    func fetchAndCombineExerciseData(start: Date, end: Date, dispatchGroup: DispatchGroup, completion: @escaping (Result<([Date: HourlyExerciseData], [Date: DailyAverageExerciseData]), Error>) -> Void) {
-        var hourlyExerciseData = [Date: HourlyExerciseData]()
-        var dailyAverageExerciseData = [Date: DailyAverageExerciseData]()
-        let queue = DispatchQueue(label: "com.yourapp.hourlyExerciseDataQueue")
-        
-        // Hourly data for Move Time
-        dispatchGroup.enter()
-        fetchHourlyExerciseData(for: appleMoveTimeType, dataType: .move, start: start, end: end) { result in
-            switch result {
-            case .success(let results):
-                for (hour, newData) in results {
-                    guard let hourDate = hour as? Date else {
-                        print("Invalid date in results: \(hour)")
-                        continue
-                    }
-                    
-                    queue.sync {
-                       // print("hourDate: \(hourDate)")
-                        //print("newData.totalMinutes: \(newData.totalMinutes)")
-                        
-                        if var existingData = hourlyExerciseData[hourDate] {
-                        //    print("hourlyExerciseData[hourDate] exists")
-                            existingData.moveMinutes += newData.totalMinutes
-                            hourlyExerciseData[hourDate] = existingData
-                        } else {
-                          //  print("hourlyExerciseData[hourDate] does not exist")
-                            let defaultData = HourlyExerciseData(hour: hourDate, moveMinutes: 0, exerciseMinutes: 0)
-                            var newEntry = defaultData
-                            newEntry.moveMinutes += newData.totalMinutes
-                            hourlyExerciseData[hourDate] = newEntry
-                        }
-                    }
-                }
-            case .failure(let error):
-                print("Error fetching move data: \(error)")
-            }
-            dispatchGroup.leave()
-        }
-        
-        // Hourly data for Exercise Time
-        dispatchGroup.enter()
-        fetchHourlyExerciseData(for: appleExerciseTimeType, dataType: .exercise, start: start, end: end) { result in
-            switch result {
-            case .success(let results):
-                for (hour, newData) in results {
-                    guard let hourDate = hour as? Date else {
-                       // print("Invalid date in results: \(hour)")
-                        continue
-                    }
-                    
-                    queue.sync {
-                      //  print("hourDate: \(hourDate)")
-                        //print("newData.totalMinutes: \(newData.totalMinutes)")
-                        
-                        if var existingData = hourlyExerciseData[hourDate] {
-                          //  print("hourlyExerciseData[hourDate] exists")
-                            existingData.exerciseMinutes += newData.totalMinutes
-                            hourlyExerciseData[hourDate] = existingData
-                        } else {
-                           // print("hourlyExerciseData[hourDate] does not exist")
-                            let defaultData = HourlyExerciseData(hour: hourDate, moveMinutes: 0, exerciseMinutes: 0)
-                            var newEntry = defaultData
-                            newEntry.exerciseMinutes += newData.totalMinutes
-                            hourlyExerciseData[hourDate] = newEntry
-                        }
-                    }
-                }
-            case .failure(let error):
-                print("Error fetching exercise minutes: \(error)")
-                
-                dispatchGroup.leave()
+    func fetchAndCombineExerciseData(
+            start: Date,
+            end: Date,
+            dispatchGroup: DispatchGroup,
+            completion: @escaping (Result<([Date: HourlyExerciseData], [Date: DailyAverageExerciseData]), Error>) -> Void
+        ) {
+            var hourlyExerciseData = [Date: HourlyExerciseData]()
+            var dailyAverageExerciseData = [Date: DailyAverageExerciseData]()
+            let syncQ = DispatchQueue(label: "com.yourapp.hourlyExerciseDataQueue")
+
+            
+            guard let healthStore = self.healthStore else {
+                completion(.failure(HealthStoreError.notAvailable))
+                return
             }
             
-            // Calculate daily averages post-fetch
+            // 1) MOVE MINUTES (enter -> guaranteed leave)
+            dispatchGroup.enter()
+            fetchHourlyExerciseData(for: appleMoveTimeType, dataType: .move, start: start, end: end) { result in
+                defer { dispatchGroup.leave() }
+                switch result {
+                case .success(let results):
+                    for (hour, newData) in results {
+                        // `hour` is already a Date
+                        let hourDate = hour
+                        syncQ.sync {
+                            if var existing = hourlyExerciseData[hourDate] {
+                                existing.moveMinutes += newData.totalMinutes
+                                hourlyExerciseData[hourDate] = existing
+                            } else {
+                                var entry = HourlyExerciseData(hour: hourDate, moveMinutes: 0, exerciseMinutes: 0)
+                                entry.moveMinutes += newData.totalMinutes
+                                hourlyExerciseData[hourDate] = entry
+                            }
+                        }
+                    }
+                case .failure(let error):
+                    print("Error fetching move data: \(error)")
+                }
+            }
+
+            // 2) EXERCISE MINUTES (enter -> guaranteed leave)
+            dispatchGroup.enter()
+            fetchHourlyExerciseData(for: appleExerciseTimeType, dataType: .exercise, start: start, end: end) { result in
+                defer { dispatchGroup.leave() }
+                switch result {
+                case .success(let results):
+                    for (hour, newData) in results {
+                        let hourDate = hour
+                        syncQ.sync {
+                            if var existing = hourlyExerciseData[hourDate] {
+                                existing.exerciseMinutes += newData.totalMinutes
+                                hourlyExerciseData[hourDate] = existing
+                            } else {
+                                var entry = HourlyExerciseData(hour: hourDate, moveMinutes: 0, exerciseMinutes: 0)
+                                entry.exerciseMinutes += newData.totalMinutes
+                                hourlyExerciseData[hourDate] = entry
+                            }
+                        }
+                    }
+                case .failure(let error):
+                    print("Error fetching exercise minutes: \(error)")
+                }
+            }
+
+            // 3) Notify ONCE after both hourly queries finish
             dispatchGroup.notify(queue: .main) {
+                // Build per-day totals, then (optionally) convert to averages
+                var perDayTotals: [Date: (move: Double, exercise: Double, hoursCount: Int)] = [:]
                 for (hour, data) in hourlyExerciseData {
                     let dayStart = Calendar.current.startOfDay(for: hour)
-                    let existingData = dailyAverageExerciseData[dayStart, default: DailyAverageExerciseData(date: dayStart, averageMoveMinutes: 0, averageExerciseMinutes: 0)]
-                    dailyAverageExerciseData[dayStart] = DailyAverageExerciseData(
-                        date: dayStart,
-                        averageMoveMinutes: existingData.averageMoveMinutes + data.moveMinutes / 24,  // Assuming average over possible 24 data points
-                        averageExerciseMinutes: existingData.averageExerciseMinutes + data.exerciseMinutes / 24
+                    var agg = perDayTotals[dayStart] ?? (0, 0, 0)
+                    agg.move += data.moveMinutes
+                    agg.exercise += data.exerciseMinutes
+                    agg.hoursCount += 1
+                    perDayTotals[dayStart] = agg
+                }
+
+                for (day, agg) in perDayTotals {
+                    dailyAverageExerciseData[day] = DailyAverageExerciseData(
+                        date: day,
+                        averageMoveMinutes: agg.move,        // actually totals now
+                        averageExerciseMinutes: agg.exercise // totals too
                     )
                 }
+
                 completion(.success((hourlyExerciseData, dailyAverageExerciseData)))
             }
-        }
-        
-        func fetchHourlyExerciseData(for quantityType: HKQuantityType, dataType: DataType, start: Date, end: Date, completion: @escaping (Result<[Date: HourlyExerciseData], Error>) -> Void) {
-            let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
-            var interval = DateComponents()
-            interval.hour = 1
-            
-            let query = HKStatisticsCollectionQuery(quantityType: quantityType, quantitySamplePredicate: predicate, options: [.cumulativeSum], anchorDate: start, intervalComponents: interval)
-            query.initialResultsHandler = { _, results, error in
-                guard let results = results else {
-                    completion(.failure(error ?? HealthStoreError.dataUnavailable("exercise")))
-                    return
-                }
-                
-                var data: [Date: HourlyExerciseData] = [:]
-                results.enumerateStatistics(from: start, to: end) { statistic, _ in
-                    let hour = statistic.startDate
-                    let totalMinutes = statistic.sumQuantity()?.doubleValue(for: .minute()) ?? 0
-                    var existingData = data[hour, default: HourlyExerciseData(hour: hour, moveMinutes: 0, exerciseMinutes: 0)]
-                    
-                    switch dataType {
-                    case .move:
-                        existingData.moveMinutes += totalMinutes
-                    case .exercise:
-                        existingData.exerciseMinutes += totalMinutes
+
+            // ---- helpers (unchanged except for small correctness nits) ----
+
+            func fetchHourlyExerciseData(
+                for quantityType: HKQuantityType,
+                dataType: DataType,
+                start: Date,
+                end: Date,
+                completion: @escaping (Result<[Date: HourlyExerciseData], Error>) -> Void
+            ) {
+                let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+                var interval = DateComponents(); interval.hour = 1
+
+                // ✅ Align to the hour, not midnight
+                let anchorDate = Calendar.current.dateInterval(of: .hour, for: start)?.start ?? start
+
+                let query = HKStatisticsCollectionQuery(
+                    quantityType: quantityType,
+                    quantitySamplePredicate: predicate,
+                    options: [.cumulativeSum],
+                    anchorDate: anchorDate,
+                    intervalComponents: interval
+                )
+
+                query.initialResultsHandler = { _, results, error in
+                    guard let results = results else {
+                        completion(.failure(error ?? HealthStoreError.dataUnavailable("exercise")))
+                        return
                     }
-                    
-                    data[hour] = existingData
+
+                    var data: [Date: HourlyExerciseData] = [:]
+                    results.enumerateStatistics(from: start, to: end) { statistic, _ in
+                        let hour = statistic.startDate
+                        let minutes = statistic.sumQuantity()?.doubleValue(for: .minute()) ?? 0
+                        var entry = data[hour] ?? HourlyExerciseData(hour: hour, moveMinutes: 0, exerciseMinutes: 0)
+                        switch dataType {
+                        case .move:     entry.moveMinutes += minutes
+                        case .exercise: entry.exerciseMinutes += minutes
+                        }
+                        data[hour] = entry
+                    }
+                    completion(.success(data))
                 }
-                completion(.success(data))
+
+                // Uses the captured instance from the outer guard
+                healthStore.execute(query)
             }
-            HKHealthStore().execute(query)
-        }
+    
         
         func fetchDailyAverageExerciseData(start: Date, end: Date, healthStore: HKHealthStore, completion: @escaping (Result<[Date: DailyAverageExerciseData], Error>) -> Void) {
             var dailyAverageExerciseData = [Date: DailyAverageExerciseData]()
