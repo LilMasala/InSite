@@ -380,23 +380,63 @@
 		D46438402B2B5A2E005566A3 /* InSiteData */ = {
 			isa = PBXGroup;
 			children = (
-				D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */,
-				D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */,
-				D4991E6F2E4677D800178EC3 /* MockHealthDataSeeder.swift */,
-				D46438432B2B5A74005566A3 /* SiteChangeData.swift */,
-				D452A1242B325E9D00F66085 /* Menstrual_Data.swift */,
-				D400F84B2C2A0DD3002E09B7 /* BloodGlucose_Data.swift */,
-				D400F84D2C2B5A79002E09B7 /* BG_Data.swift */,
-				D441B9A22B6C12B7005E5D79 /* HeartRate_Data.swift */,
-				D4DC335B2BD742E600767AF2 /* RestingHeartRate.swift */,
-				D441B9A62B6C1428005E5D79 /* Exercise_Data.swift */,
-				D452A1262B32630900F66085 /* HealthStore.swift */,
-				D441B9AE2B6C1969005E5D79 /* DataManager.swift */,
-				D441B9A82B6C14A8005E5D79 /* BodyMass_Data.swift */,
-				D441B9AA2B6C14BB005E5D79 /* Sleep_Data.swift */,
-				D441B9AC2B6C14C6005E5D79 /* CaloriesBurned_Data.swift */,
+				E1A100012E90000100A0A001 /* IndividualMethods */,
+				E1A100022E90000200A0A002 /* ManagersFetchers */,
+				E1A100032E90000300A0A003 /* ML */,
+				E1A100042E90000400A0A004 /* Misc */,
+				E1A100052E90000500A0A005 /* MealDetection */,
 			);
 			path = InSiteData;
+			sourceTree = "<group>";
+		};
+		E1A100012E90000100A0A001 /* IndividualMethods */ = {
+			isa = PBXGroup;
+			children = (
+				D400F84D2C2B5A79002E09B7 /* BG_Data.swift */,
+				D400F84B2C2A0DD3002E09B7 /* BloodGlucose_Data.swift */,
+				D441B9A82B6C14A8005E5D79 /* BodyMass_Data.swift */,
+				D441B9AC2B6C14C6005E5D79 /* CaloriesBurned_Data.swift */,
+				D441B9A62B6C1428005E5D79 /* Exercise_Data.swift */,
+				D441B9A22B6C12B7005E5D79 /* HeartRate_Data.swift */,
+				D452A1242B325E9D00F66085 /* Menstrual_Data.swift */,
+				D4DC335B2BD742E600767AF2 /* RestingHeartRate.swift */,
+				D46438432B2B5A74005566A3 /* SiteChangeData.swift */,
+				D441B9AA2B6C14BB005E5D79 /* Sleep_Data.swift */,
+			);
+			path = IndividualMethods;
+			sourceTree = "<group>";
+		};
+		E1A100022E90000200A0A002 /* ManagersFetchers */ = {
+			isa = PBXGroup;
+			children = (
+				D441B9AE2B6C1969005E5D79 /* DataManager.swift */,
+				D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */,
+				D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */,
+				D452A1262B32630900F66085 /* HealthStore.swift */,
+			);
+			path = ManagersFetchers;
+			sourceTree = "<group>";
+		};
+		E1A100032E90000300A0A003 /* ML */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = ML;
+			sourceTree = "<group>";
+		};
+		E1A100042E90000400A0A004 /* Misc */ = {
+			isa = PBXGroup;
+			children = (
+				D4991E6F2E4677D800178EC3 /* MockHealthDataSeeder.swift */,
+			);
+			path = Misc;
+			sourceTree = "<group>";
+		};
+		E1A100052E90000500A0A005 /* MealDetection */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = MealDetection;
 			sourceTree = "<group>";
 		};
 		D466C8FD2D1DF3DD00E9CE68 /* Frameworks */ = {
