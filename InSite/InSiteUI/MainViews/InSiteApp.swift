@@ -7,6 +7,7 @@
 import SwiftUI
 import FirebaseCore
 import FirebaseAppCheck
+import FirebaseAuth
 
 class AppDelegate: NSObject, UIApplicationDelegate {
   func application(
@@ -32,12 +33,21 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct YourApp: App {
   @StateObject private var themeManager = ThemeManager()
+  @Environment(\.scenePhase) private var scenePhase
   @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
 
   var body: some Scene {
     WindowGroup {
       RootView()
         .environmentObject(themeManager)
+    }
+    .onChange(of: scenePhase) { newPhase in
+      guard newPhase == .background else { return }
+      guard let uid = Auth.auth().currentUser?.uid else { return }
+
+      Task {
+        try? await ChameliaStateManager.shared.saveToFirebase(userId: uid)
+      }
     }
   }
 }

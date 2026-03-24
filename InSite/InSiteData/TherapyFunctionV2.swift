@@ -12,7 +12,7 @@ struct TherapyFunctionV2: Codable, Equatable {
     }
 }
 
-extension TherapyFunctionV2 {
+extension TherapyFunc tionV2 {
     func value(at date: Date) -> (basal: Double, isf: Double, cr: Double) {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: tzIdentifier) ?? .current

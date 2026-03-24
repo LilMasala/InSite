@@ -9,6 +9,7 @@ struct TherapySnapshot: Codable, Identifiable {
     var profileId: String
     var profileName: String
     var hourRanges: [HourRange]
+    var therapyFunctionV2: TherapyFunctionV2?
 }
 
 final class TherapySettingsLogManager {
@@ -46,5 +47,35 @@ final class TherapySettingsLogManager {
             return snap
         }
         return nil
+    }
+
+    func loadSnapshots(since startDate: Date, until endDate: Date) async throws -> [TherapySnapshot] {
+        guard let uid = Auth.auth().currentUser?.uid else { return [] }
+
+        let query = logCollection(for: uid)
+            .whereField("timestamp", isGreaterThanOrEqualTo: startDate)
+            .whereField("timestamp", isLessThan: endDate)
+            .order(by: "timestamp", descending: false)
+
+        let snapshots = try await query.getDocuments().documents.compactMap { document in
+            try? document.data(as: TherapySnapshot.self)
+        }
+
+        if !snapshots.isEmpty {
+            cache.append(contentsOf: snapshots)
+            cache.sort { $0.timestamp < $1.timestamp }
+
+            var deduped: [TherapySnapshot] = []
+            var seenIDs = Set<String>()
+            for snapshot in cache.reversed() {
+                let key = snapshot.id ?? "\(snapshot.profileId)|\(snapshot.timestamp.timeIntervalSince1970)"
+                if seenIDs.insert(key).inserted {
+                    deduped.append(snapshot)
+                }
+            }
+            cache = deduped.reversed()
+        }
+
+        return snapshots
     }
 }

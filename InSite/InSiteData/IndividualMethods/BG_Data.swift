@@ -99,6 +99,26 @@ struct HourlyAvgBgData {
 
 extension HealthStore {
 
+    public func fetchBgRawValuesHourly(
+        start: Date,
+        end: Date,
+        completion: @escaping (Result<[HourlyBgValues], Error>) -> Void
+    ) {
+        guard let healthStore = self.healthStore else {
+            completion(.failure(HealthStoreError.notAvailable))
+            return
+        }
+
+        fetchAllBgPerHour(
+            start: start,
+            end: end,
+            healthStore: healthStore,
+            bloodGlucoseType: bloodGlucoseType,
+            dispatchGroup: DispatchGroup(),
+            completion: completion
+        )
+    }
+
     /// Returns (1) first/last BG per hour, (2) average BG per hour, (3) % low/high per hour.
     /// NOTE: Uses the caller's dispatchGroup only to coordinate these three top-level tasks.
     public func fetchAllBgData(

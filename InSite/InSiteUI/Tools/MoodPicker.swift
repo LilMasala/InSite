@@ -1,6 +1,9 @@
 import SwiftUI
 
-struct MoodPoint: Equatable {
+
+//Codable means able to be converted to and from serialized representaitons
+//equatable means that i can check wether or not two instances are equal or comparable using the ==
+struct MoodPoint: Equatable, Codable {
     var valence: Double   // [-1, 1]  (pleasant ↔ unpleasant)
     var arousal: Double   // [-1, 1]  (energetic ↔ calm)
     var timestamp: Date = Date()

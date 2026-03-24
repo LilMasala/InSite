@@ -33,6 +33,8 @@ final class DataManager {
 
     private let fetcher = HealthDataFetcher()
     private let uploader = HealthDataUploader()
+    private let chameliaEngine = ChameliaEngine.shared
+    private let chameliaStateManager = ChameliaStateManager.shared
     private var authListener: AuthStateDidChangeListenerHandle?
 
     private init() {
@@ -336,6 +338,8 @@ final class DataManager {
                 let moodEvents = MoodCache.shared.load() // or fetch from Firestore if you prefer
                 let moodCtx: [Date: MoodCTX] = buildMoodCTXByHour(span: span, events: moodEvents, maxCarryHours: 24)
                 
+                var latestFrame: FeatureFrameHourly?
+
                 // Site CTX: leave empty for now (we can add a builder that expands your daily rows to hours)
                 writes.enter() // make frames upload part of the "writes" phase
                 SiteChangeData.shared.buildSiteCtxByHour(startUtc: span.lowerBound, endUtc: span.upperBound) { siteCtx in
@@ -350,6 +354,7 @@ final class DataManager {
                         site: siteCtx,
                         mood: moodCtx
                     )
+                    latestFrame = frames.max(by: { $0.hourStartUtc < $1.hourStartUtc })
                     
                     if !frames.isEmpty {
                         self.uploader.uploadFeatureFramesHourly(frames) {
@@ -363,13 +368,94 @@ final class DataManager {
 
                 // ---- Finish after all writes (old + frames) complete ----
                 writes.notify(queue: .main) {
-                    UserDefaults.standard.set(endDate, forKey: lastSyncKey)
-                    if !hasDoneInitial { UserDefaults.standard.set(true, forKey: firstRunKey) }
-                    completion()
+                    Task {
+                        if
+                            let currentUser = Auth.auth().currentUser,
+                            currentUser.uid == uid,
+                            !currentUser.isAnonymous,
+                            let latestFrame
+                        {
+                            await self.syncChameliaAfterHealthSync(
+                                userId: currentUser.uid,
+                                frame: latestFrame,
+                                syncDate: endDate
+                            )
+                        }
+
+                        await MainActor.run {
+                            UserDefaults.standard.set(endDate, forKey: lastSyncKey)
+                            if !hasDoneInitial { UserDefaults.standard.set(true, forKey: firstRunKey) }
+                            completion()
+                        }
+                    }
                 }
             }
 
         }
+    }
+}
+
+private extension DataManager {
+    func syncChameliaAfterHealthSync(userId: String, frame: FeatureFrameHourly, syncDate: Date) async {
+        let signalBlob = FeatureFrameToChameliaAdapter.makeSignalBlob(from: frame)
+        let numericSignals = signalBlob.numericSignals
+        guard !numericSignals.isEmpty else { return }
+
+        do {
+            try await chameliaEngine.observe(
+                patientId: userId,
+                timestamp: signalBlob.hourStartUtc.timeIntervalSince1970,
+                signals: numericSignals
+            )
+        } catch ChameliaError.notFound {
+            print("[DataManager] Chamelia patient not initialized; skipping observe/step.")
+            return
+        } catch {
+            print("[DataManager] Chamelia observe failed: \(error)")
+            return
+        }
+
+        if shouldRunDailyChameliaStep(userId: userId, on: syncDate) {
+            do {
+                _ = try await chameliaEngine.step(
+                    patientId: userId,
+                    timestamp: signalBlob.hourStartUtc.timeIntervalSince1970,
+                    signals: numericSignals
+                )
+                markDailyChameliaStepRan(userId: userId, on: syncDate)
+            } catch ChameliaError.notFound {
+                print("[DataManager] Chamelia patient not initialized; skipping daily step.")
+            } catch {
+                print("[DataManager] Chamelia step failed: \(error)")
+            }
+        }
+
+        if shouldRunDailyChameliaSave(userId: userId, on: syncDate) {
+            do {
+                _ = try await chameliaStateManager.saveToFirebase(userId: userId)
+                markDailyChameliaSaveRan(userId: userId, on: syncDate)
+            } catch {
+                print("[DataManager] Chamelia save failed: \(error)")
+            }
+        }
+    }
+
+    func shouldRunDailyChameliaStep(userId: String, on date: Date) -> Bool {
+        let key = "LastChameliaStepDate.\(userId)"
+        return !Calendar.current.isDate(UserDefaults.standard.object(forKey: key) as? Date ?? .distantPast, inSameDayAs: date)
+    }
+
+    func markDailyChameliaStepRan(userId: String, on date: Date) {
+        UserDefaults.standard.set(date, forKey: "LastChameliaStepDate.\(userId)")
+    }
+
+    func shouldRunDailyChameliaSave(userId: String, on date: Date) -> Bool {
+        let key = "LastChameliaSyncSaveDate.\(userId)"
+        return !Calendar.current.isDate(UserDefaults.standard.object(forKey: key) as? Date ?? .distantPast, inSameDayAs: date)
+    }
+
+    func markDailyChameliaSaveRan(userId: String, on date: Date) {
+        UserDefaults.standard.set(date, forKey: "LastChameliaSyncSaveDate.\(userId)")
     }
 }
 
@@ -382,8 +468,7 @@ extension DataManager {
                 let windowStart = max(last ?? startDate, startDate)
                 let windowEnd   = endDate
 
-                var snaps = (try? await TherapySettingsLogManager.shared
-                    .loadSnapshots(since: windowStart, until: windowEnd)) ?? []
+                var snaps = (try? await TherapySettingsLogManager.shared.loadSnapshots(since: windowStart, until: windowEnd)) ?? []
 
                 if let baseline = try? await TherapySettingsLogManager.shared
                     .getActiveTherapyProfile(at: windowStart.addingTimeInterval(-1)),

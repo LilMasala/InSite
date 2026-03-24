@@ -25,20 +25,13 @@
 		D441B9BA2B729204005E5D79 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D441B9B92B729204005E5D79 /* Profile.swift */; };
 		D452A1252B325E9D00F66085 /* Menstrual_Data.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452A1242B325E9D00F66085 /* Menstrual_Data.swift */; };
 		D452A1272B32630900F66085 /* HealthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452A1262B32630900F66085 /* HealthStore.swift */; };
-		D452CA982E8AF16A0083BBF4 /* CommunityModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CA972E8AF16A0083BBF4 /* CommunityModels.swift */; };
 		D452CA992E8AF16A0083BBF4 /* CommunityModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CA972E8AF16A0083BBF4 /* CommunityModels.swift */; };
-		D452CA9B2E8AF17D0083BBF4 /* CommunityHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CA9A2E8AF17D0083BBF4 /* CommunityHub.swift */; };
 		D452CA9C2E8AF17D0083BBF4 /* CommunityHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CA9A2E8AF17D0083BBF4 /* CommunityHub.swift */; };
-		D452CA9E2E8AF19A0083BBF4 /* CommunityBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CA9D2E8AF19A0083BBF4 /* CommunityBoard.swift */; };
 		D452CA9F2E8AF19A0083BBF4 /* CommunityBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CA9D2E8AF19A0083BBF4 /* CommunityBoard.swift */; };
-		D452CAA12E8AF1A50083BBF4 /* CommunityBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAA02E8AF1A50083BBF4 /* CommunityBoardView.swift */; };
 		D452CAA22E8AF1A50083BBF4 /* CommunityBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAA02E8AF1A50083BBF4 /* CommunityBoardView.swift */; };
 		D452CAA42E8AF1AF0083BBF4 /* CrosswordsHome.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAA32E8AF1AF0083BBF4 /* CrosswordsHome.swift */; };
-		D452CAA52E8AF1AF0083BBF4 /* CrosswordsHome.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAA32E8AF1AF0083BBF4 /* CrosswordsHome.swift */; };
 		D452CAA72E8AF1B80083BBF4 /* CrosswordMakerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAA62E8AF1B80083BBF4 /* CrosswordMakerView.swift */; };
-		D452CAA82E8AF1B80083BBF4 /* CrosswordMakerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAA62E8AF1B80083BBF4 /* CrosswordMakerView.swift */; };
 		D452CAAD2E8B16380083BBF4 /* DailyCrosswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAAC2E8B16380083BBF4 /* DailyCrosswordView.swift */; };
-		D452CAAE2E8B16380083BBF4 /* DailyCrosswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D452CAAC2E8B16380083BBF4 /* DailyCrosswordView.swift */; };
 		D457CC932C41AD3F00A0934E /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = D457CC922C41AD3F00A0934E /* FirebaseAnalytics */; };
 		D457CC952C41AD3F00A0934E /* FirebaseAnalyticsOnDeviceConversion in Frameworks */ = {isa = PBXBuildFile; productRef = D457CC942C41AD3F00A0934E /* FirebaseAnalyticsOnDeviceConversion */; };
 		D457CC972C41AD3F00A0934E /* FirebaseAnalyticsSwift in Frameworks */ = {isa = PBXBuildFile; productRef = D457CC962C41AD3F00A0934E /* FirebaseAnalyticsSwift */; };
@@ -82,35 +75,43 @@
 		D466C90A2D1DF8FB00E9CE68 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D466C9092D1DF8FB00E9CE68 /* ProfileView.swift */; };
 		D46885C62D70FA5900A8EF61 /* UserManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46885C52D70FA5900A8EF61 /* UserManager.swift */; };
 		D46BEDDA2E84338C00937E29 /* MoodPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDD92E84338C00937E29 /* MoodPicker.swift */; };
-		D46BEDDB2E84338C00937E29 /* MoodPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDD92E84338C00937E29 /* MoodPicker.swift */; };
 		D46BEDDD2E843D8200937E29 /* TherapyVM.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDDC2E843D8200937E29 /* TherapyVM.swift */; };
-		D46BEDDE2E843D8200937E29 /* TherapyVM.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDDC2E843D8200937E29 /* TherapyVM.swift */; };
 		D46BEDE02E843F0000937E29 /* FloatPulseModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDDF2E843F0000937E29 /* FloatPulseModifier.swift */; };
-		D46BEDE12E843F0000937E29 /* FloatPulseModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDDF2E843F0000937E29 /* FloatPulseModifier.swift */; };
 		D46BEDE32E843F8900937E29 /* PeekContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDE22E843F8900937E29 /* PeekContainer.swift */; };
-		D46BEDE42E843F8900937E29 /* PeekContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDE22E843F8900937E29 /* PeekContainer.swift */; };
 		D46BEDE62E84454600937E29 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDE52E84454600937E29 /* FlowLayout.swift */; };
-		D46BEDE72E84454600937E29 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDE52E84454600937E29 /* FlowLayout.swift */; };
 		D46BEDE92E8446EC00937E29 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDE82E8446EC00937E29 /* ThemeManager.swift */; };
-		D46BEDEA2E8446EC00937E29 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46BEDE82E8446EC00937E29 /* ThemeManager.swift */; };
+		D48165F02F633CEF00294D5B /* CTXBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48165EC2F633CEF00294D5B /* CTXBuilder.swift */; };
+		D48165F12F633CEF00294D5B /* FeatureCTX.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48165ED2F633CEF00294D5B /* FeatureCTX.swift */; };
+		D48165F22F633CEF00294D5B /* FeatureFrames.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48165EE2F633CEF00294D5B /* FeatureFrames.swift */; };
+		D48165F32F633CEF00294D5B /* FeatureJoiner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48165EF2F633CEF00294D5B /* FeatureJoiner.swift */; };
+		D48165FB2F633D0500294D5B /* File.txt in Resources */ = {isa = PBXBuildFile; fileRef = D48165F62F633D0500294D5B /* File.txt */; };
+		D48166052F633D1100294D5B /* TherapyFunctionV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48166042F633D1100294D5B /* TherapyFunctionV2.swift */; };
+		D48166062F633D1100294D5B /* TherapyFunction.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48166032F633D1100294D5B /* TherapyFunction.swift */; };
+		D48166072F633D1100294D5B /* MoodData.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48166022F633D1100294D5B /* MoodData.swift */; };
+		D48166132F633DE700294D5B /* ScheduleEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48166122F633DE700294D5B /* ScheduleEditor.swift */; };
+		D48166162F633DF500294D5B /* TimeRangeHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48166152F633DF500294D5B /* TimeRangeHelpers.swift */; };
+		D48166172F633DF500294D5B /* DailyScheduleHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48166142F633DF500294D5B /* DailyScheduleHost.swift */; };
+		D48166242F633E0200294D5B /* DriftCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D481661B2F633E0200294D5B /* DriftCanvasView.swift */; };
+		D48166252F633E0200294D5B /* FeedbackBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D481661C2F633E0200294D5B /* FeedbackBoardView.swift */; };
+		D48166262F633E0200294D5B /* PsuedonymService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D481661E2F633E0200294D5B /* PsuedonymService.swift */; };
+		D48166272F633E0200294D5B /* CommunityBoardVM.swift in Sources */ = {isa = PBXBuildFile; fileRef = D481661A2F633E0200294D5B /* CommunityBoardVM.swift */; };
+		D48166282F633E0200294D5B /* MentorshipThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D481661D2F633E0200294D5B /* MentorshipThreadView.swift */; };
+		D481662A2F633E1C00294D5B /* MealDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48166292F633E1C00294D5B /* MealDetector.swift */; };
+		D481662C2F633E7500294D5B /* Detectors.swift in Sources */ = {isa = PBXBuildFile; fileRef = D481662B2F633E7500294D5B /* Detectors.swift */; };
+		D48166312F633E9C00294D5B /* TherapySettingsLogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D481662F2F633E9C00294D5B /* TherapySettingsLogManager.swift */; };
 		D487C7352E8AC32F001C34EF /* TherapySettingsV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = D487C7342E8AC32F001C34EF /* TherapySettingsV2.swift */; };
-		D487C7362E8AC32F001C34EF /* TherapySettingsV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = D487C7342E8AC32F001C34EF /* TherapySettingsV2.swift */; };
-		D48D78AD2E7102D0007DFA5C /* TherapySettingsLogManager2.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48D78AC2E7102D0007DFA5C /* TherapySettingsLogManager2.swift */; };
-		D48D78AE2E7102D0007DFA5C /* TherapySettingsLogManager2.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48D78AC2E7102D0007DFA5C /* TherapySettingsLogManager2.swift */; };
-		D4991E702E4677D800178EC3 /* HealthDataUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */; };
-		D4991E712E4677D800178EC3 /* HealthDataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */; };
-		D4991E722E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6F2E4677D800178EC3 /* MockHealthDataSeeder.swift */; };
-		D4991E732E4677D800178EC3 /* HealthDataUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */; };
-		D4991E742E4677D800178EC3 /* HealthDataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */; };
-		D4991E752E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6F2E4677D800178EC3 /* MockHealthDataSeeder.swift */; };
 		D4991E762E4677D800178EC3 /* HealthDataUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */; };
 		D4991E772E4677D800178EC3 /* HealthDataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */; };
 		D4991E782E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4991E6F2E4677D800178EC3 /* MockHealthDataSeeder.swift */; };
+		D4A100022F70000100C0A001 /* ChameliaConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A100012F70000100C0A001 /* ChameliaConfig.swift */; };
+		D4B6503C2F7323D600F6D4B7 /* FeatureFrameToChameliaAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4B6503B2F7323D600F6D4B7 /* FeatureFrameToChameliaAdapter.swift */; };
+		D4B6503E2F732C5300F6D4B7 /* ChameliaStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4B6503D2F732C5300F6D4B7 /* ChameliaStateManager.swift */; };
 		D4CF03A02C9B039A004CD1D3 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = D4CF039F2C9B039A004CD1D3 /* GoogleSignIn */; };
 		D4CF03A22C9B039A004CD1D3 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = D4CF03A12C9B039A004CD1D3 /* GoogleSignInSwift */; };
 		D4CF03A52C9B380F004CD1D3 /* Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4CF03A42C9B380F004CD1D3 /* Utilities.swift */; };
 		D4CF03A72C9F2F07004CD1D3 /* SignInGoogleHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4CF03A62C9F2F07004CD1D3 /* SignInGoogleHelper.swift */; };
 		D4DC335C2BD742E600767AF2 /* RestingHeartRate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4DC335B2BD742E600767AF2 /* RestingHeartRate.swift */; };
+		D4F79EB92F73463300498216 /* ChameliaEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79EB82F73463300498216 /* ChameliaEngine.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -181,14 +182,36 @@
 		D46BEDE22E843F8900937E29 /* PeekContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeekContainer.swift; sourceTree = "<group>"; };
 		D46BEDE52E84454600937E29 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowLayout.swift; sourceTree = "<group>"; };
 		D46BEDE82E8446EC00937E29 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
+		D48165EC2F633CEF00294D5B /* CTXBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CTXBuilder.swift; sourceTree = "<group>"; };
+		D48165ED2F633CEF00294D5B /* FeatureCTX.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureCTX.swift; sourceTree = "<group>"; };
+		D48165EE2F633CEF00294D5B /* FeatureFrames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFrames.swift; sourceTree = "<group>"; };
+		D48165EF2F633CEF00294D5B /* FeatureJoiner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureJoiner.swift; sourceTree = "<group>"; };
+		D48165F62F633D0500294D5B /* File.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = File.txt; sourceTree = "<group>"; };
+		D48166022F633D1100294D5B /* MoodData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoodData.swift; sourceTree = "<group>"; };
+		D48166032F633D1100294D5B /* TherapyFunction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TherapyFunction.swift; sourceTree = "<group>"; };
+		D48166042F633D1100294D5B /* TherapyFunctionV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TherapyFunctionV2.swift; sourceTree = "<group>"; };
+		D48166122F633DE700294D5B /* ScheduleEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleEditor.swift; sourceTree = "<group>"; };
+		D48166142F633DF500294D5B /* DailyScheduleHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyScheduleHost.swift; sourceTree = "<group>"; };
+		D48166152F633DF500294D5B /* TimeRangeHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeRangeHelpers.swift; sourceTree = "<group>"; };
+		D481661A2F633E0200294D5B /* CommunityBoardVM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityBoardVM.swift; sourceTree = "<group>"; };
+		D481661B2F633E0200294D5B /* DriftCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriftCanvasView.swift; sourceTree = "<group>"; };
+		D481661C2F633E0200294D5B /* FeedbackBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackBoardView.swift; sourceTree = "<group>"; };
+		D481661D2F633E0200294D5B /* MentorshipThreadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MentorshipThreadView.swift; sourceTree = "<group>"; };
+		D481661E2F633E0200294D5B /* PsuedonymService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PsuedonymService.swift; sourceTree = "<group>"; };
+		D48166292F633E1C00294D5B /* MealDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealDetector.swift; sourceTree = "<group>"; };
+		D481662B2F633E7500294D5B /* Detectors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Detectors.swift; sourceTree = "<group>"; };
+		D481662F2F633E9C00294D5B /* TherapySettingsLogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TherapySettingsLogManager.swift; sourceTree = "<group>"; };
 		D487C7342E8AC32F001C34EF /* TherapySettingsV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TherapySettingsV2.swift; sourceTree = "<group>"; };
-		D48D78AC2E7102D0007DFA5C /* TherapySettingsLogManager2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TherapySettingsLogManager2.swift; sourceTree = "<group>"; };
 		D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDataFetcher.swift; sourceTree = "<group>"; };
 		D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDataUploader.swift; sourceTree = "<group>"; };
 		D4991E6F2E4677D800178EC3 /* MockHealthDataSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockHealthDataSeeder.swift; sourceTree = "<group>"; };
+		D4A100012F70000100C0A001 /* ChameliaConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChameliaConfig.swift; sourceTree = "<group>"; };
+		D4B6503B2F7323D600F6D4B7 /* FeatureFrameToChameliaAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFrameToChameliaAdapter.swift; sourceTree = "<group>"; };
+		D4B6503D2F732C5300F6D4B7 /* ChameliaStateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChameliaStateManager.swift; sourceTree = "<group>"; };
 		D4CF03A42C9B380F004CD1D3 /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
 		D4CF03A62C9F2F07004CD1D3 /* SignInGoogleHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInGoogleHelper.swift; sourceTree = "<group>"; };
 		D4DC335B2BD742E600767AF2 /* RestingHeartRate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RestingHeartRate.swift; sourceTree = "<group>"; };
+		D4F79EB82F73463300498216 /* ChameliaEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChameliaEngine.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -266,6 +289,11 @@
 		D452CA942E8AF0E00083BBF4 /* Community */ = {
 			isa = PBXGroup;
 			children = (
+				D481661A2F633E0200294D5B /* CommunityBoardVM.swift */,
+				D481661B2F633E0200294D5B /* DriftCanvasView.swift */,
+				D481661C2F633E0200294D5B /* FeedbackBoardView.swift */,
+				D481661D2F633E0200294D5B /* MentorshipThreadView.swift */,
+				D481661E2F633E0200294D5B /* PsuedonymService.swift */,
 				D452CA972E8AF16A0083BBF4 /* CommunityModels.swift */,
 				D452CA9D2E8AF19A0083BBF4 /* CommunityBoard.swift */,
 				D452CAA02E8AF1A50083BBF4 /* CommunityBoardView.swift */,
@@ -280,6 +308,8 @@
 		D452CA952E8AF0E90083BBF4 /* Tools */ = {
 			isa = PBXGroup;
 			children = (
+				D48166142F633DF500294D5B /* DailyScheduleHost.swift */,
+				D48166152F633DF500294D5B /* TimeRangeHelpers.swift */,
 				D46BEDE82E8446EC00937E29 /* ThemeManager.swift */,
 				D46BEDDF2E843F0000937E29 /* FloatPulseModifier.swift */,
 				D46BEDE22E843F8900937E29 /* PeekContainer.swift */,
@@ -293,6 +323,7 @@
 		D452CA962E8AF1440083BBF4 /* MainViews */ = {
 			isa = PBXGroup;
 			children = (
+				D48166122F633DE700294D5B /* ScheduleEditor.swift */,
 				D487C7342E8AC32F001C34EF /* TherapySettingsV2.swift */,
 				D46438172B2A3FD0005566A3 /* HomeScreen.swift */,
 				D46438152B2A3FD0005566A3 /* InSiteApp.swift */,
@@ -329,6 +360,7 @@
 				D46885C42D70FA4300A8EF61 /* Firestore */,
 				D466C8FE2D1DF52E00E9CE68 /* Core */,
 				D4CF03A32C9B37E6004CD1D3 /* Utilities */,
+				D4A100012F70000100C0A001 /* ChameliaConfig.swift */,
 				D438BDFF2C92769A00C375BF /* Auth */,
 				D466B9F82B69EA3E005A99E6 /* Info.plist */,
 				D419EEF52C9A03DE00160B07 /* GoogleService-Info.plist */,
@@ -338,6 +370,8 @@
 				D464383F2B2B5A20005566A3 /* InSiteUI */,
 				D46438192B2A3FD1005566A3 /* Assets.xcassets */,
 				D464381B2B2A3FD1005566A3 /* Preview Content */,
+				D4B6503D2F732C5300F6D4B7 /* ChameliaStateManager.swift */,
+				D4F79EB82F73463300498216 /* ChameliaEngine.swift */,
 			);
 			path = InSite;
 			sourceTree = "<group>";
@@ -380,6 +414,7 @@
 		D46438402B2B5A2E005566A3 /* InSiteData */ = {
 			isa = PBXGroup;
 			children = (
+				D48165F62F633D0500294D5B /* File.txt */,
 				E1A100012E90000100A0A001 /* IndividualMethods */,
 				E1A100022E90000200A0A002 /* ManagersFetchers */,
 				E1A100032E90000300A0A003 /* ML */,
@@ -387,56 +422,6 @@
 				E1A100052E90000500A0A005 /* MealDetection */,
 			);
 			path = InSiteData;
-			sourceTree = "<group>";
-		};
-		E1A100012E90000100A0A001 /* IndividualMethods */ = {
-			isa = PBXGroup;
-			children = (
-				D400F84D2C2B5A79002E09B7 /* BG_Data.swift */,
-				D400F84B2C2A0DD3002E09B7 /* BloodGlucose_Data.swift */,
-				D441B9A82B6C14A8005E5D79 /* BodyMass_Data.swift */,
-				D441B9AC2B6C14C6005E5D79 /* CaloriesBurned_Data.swift */,
-				D441B9A62B6C1428005E5D79 /* Exercise_Data.swift */,
-				D441B9A22B6C12B7005E5D79 /* HeartRate_Data.swift */,
-				D452A1242B325E9D00F66085 /* Menstrual_Data.swift */,
-				D4DC335B2BD742E600767AF2 /* RestingHeartRate.swift */,
-				D46438432B2B5A74005566A3 /* SiteChangeData.swift */,
-				D441B9AA2B6C14BB005E5D79 /* Sleep_Data.swift */,
-			);
-			path = IndividualMethods;
-			sourceTree = "<group>";
-		};
-		E1A100022E90000200A0A002 /* ManagersFetchers */ = {
-			isa = PBXGroup;
-			children = (
-				D441B9AE2B6C1969005E5D79 /* DataManager.swift */,
-				D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */,
-				D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */,
-				D452A1262B32630900F66085 /* HealthStore.swift */,
-			);
-			path = ManagersFetchers;
-			sourceTree = "<group>";
-		};
-		E1A100032E90000300A0A003 /* ML */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = ML;
-			sourceTree = "<group>";
-		};
-		E1A100042E90000400A0A004 /* Misc */ = {
-			isa = PBXGroup;
-			children = (
-				D4991E6F2E4677D800178EC3 /* MockHealthDataSeeder.swift */,
-			);
-			path = Misc;
-			sourceTree = "<group>";
-		};
-		E1A100052E90000500A0A005 /* MealDetection */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = MealDetection;
 			sourceTree = "<group>";
 		};
 		D466C8FD2D1DF3DD00E9CE68 /* Frameworks */ = {
@@ -496,7 +481,7 @@
 		D46885C42D70FA4300A8EF61 /* Firestore */ = {
 			isa = PBXGroup;
 			children = (
-				D48D78AC2E7102D0007DFA5C /* TherapySettingsLogManager2.swift */,
+				D481662F2F633E9C00294D5B /* TherapySettingsLogManager.swift */,
 				D46885C52D70FA5900A8EF61 /* UserManager.swift */,
 			);
 			path = Firestore;
@@ -508,6 +493,66 @@
 				D4CF03A42C9B380F004CD1D3 /* Utilities.swift */,
 			);
 			path = Utilities;
+			sourceTree = "<group>";
+		};
+		E1A100012E90000100A0A001 /* IndividualMethods */ = {
+			isa = PBXGroup;
+			children = (
+				D48166022F633D1100294D5B /* MoodData.swift */,
+				D48166032F633D1100294D5B /* TherapyFunction.swift */,
+				D48166042F633D1100294D5B /* TherapyFunctionV2.swift */,
+				D400F84D2C2B5A79002E09B7 /* BG_Data.swift */,
+				D400F84B2C2A0DD3002E09B7 /* BloodGlucose_Data.swift */,
+				D441B9A82B6C14A8005E5D79 /* BodyMass_Data.swift */,
+				D441B9AC2B6C14C6005E5D79 /* CaloriesBurned_Data.swift */,
+				D441B9A62B6C1428005E5D79 /* Exercise_Data.swift */,
+				D441B9A22B6C12B7005E5D79 /* HeartRate_Data.swift */,
+				D452A1242B325E9D00F66085 /* Menstrual_Data.swift */,
+				D4DC335B2BD742E600767AF2 /* RestingHeartRate.swift */,
+				D46438432B2B5A74005566A3 /* SiteChangeData.swift */,
+				D441B9AA2B6C14BB005E5D79 /* Sleep_Data.swift */,
+			);
+			path = IndividualMethods;
+			sourceTree = "<group>";
+		};
+		E1A100022E90000200A0A002 /* ManagersFetchers */ = {
+			isa = PBXGroup;
+			children = (
+				D441B9AE2B6C1969005E5D79 /* DataManager.swift */,
+				D4991E6D2E4677D800178EC3 /* HealthDataFetcher.swift */,
+				D4991E6E2E4677D800178EC3 /* HealthDataUploader.swift */,
+				D452A1262B32630900F66085 /* HealthStore.swift */,
+			);
+			path = ManagersFetchers;
+			sourceTree = "<group>";
+		};
+		E1A100032E90000300A0A003 /* ML */ = {
+			isa = PBXGroup;
+			children = (
+				D48165EC2F633CEF00294D5B /* CTXBuilder.swift */,
+				D48165ED2F633CEF00294D5B /* FeatureCTX.swift */,
+				D48165EE2F633CEF00294D5B /* FeatureFrames.swift */,
+				D48165EF2F633CEF00294D5B /* FeatureJoiner.swift */,
+				D4B6503B2F7323D600F6D4B7 /* FeatureFrameToChameliaAdapter.swift */,
+			);
+			path = ML;
+			sourceTree = "<group>";
+		};
+		E1A100042E90000400A0A004 /* Misc */ = {
+			isa = PBXGroup;
+			children = (
+				D481662B2F633E7500294D5B /* Detectors.swift */,
+				D4991E6F2E4677D800178EC3 /* MockHealthDataSeeder.swift */,
+			);
+			path = Misc;
+			sourceTree = "<group>";
+		};
+		E1A100052E90000500A0A005 /* MealDetection */ = {
+			isa = PBXGroup;
+			children = (
+				D48166292F633E1C00294D5B /* MealDetector.swift */,
+			);
+			path = MealDetection;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -609,7 +654,7 @@
 					New,
 				);
 				LastSwiftUpdateCheck = 1430;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					D46438112B2A3FD0005566A3 = {
 						CreatedOnToolsVersion = 14.3.1;
@@ -655,6 +700,7 @@
 			files = (
 				D464381D2B2A3FD1005566A3 /* Preview Assets.xcassets in Resources */,
 				D464381A2B2A3FD1005566A3 /* Assets.xcassets in Resources */,
+				D48165FB2F633D0500294D5B /* File.txt in Resources */,
 				D419EEF62C9A03DE00160B07 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -680,13 +726,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D48165F02F633CEF00294D5B /* CTXBuilder.swift in Sources */,
+				D48165F12F633CEF00294D5B /* FeatureCTX.swift in Sources */,
+				D48165F22F633CEF00294D5B /* FeatureFrames.swift in Sources */,
+				D48165F32F633CEF00294D5B /* FeatureJoiner.swift in Sources */,
 				D441B9BA2B729204005E5D79 /* Profile.swift in Sources */,
 				D438BE092C9323B300C375BF /* SettingsView.swift in Sources */,
 				D438BE052C93176E00C375BF /* AuthManager.swift in Sources */,
 				D452A1252B325E9D00F66085 /* Menstrual_Data.swift in Sources */,
 				D46BEDDA2E84338C00937E29 /* MoodPicker.swift in Sources */,
 				D441B9AF2B6C1969005E5D79 /* DataManager.swift in Sources */,
-				D48D78AD2E7102D0007DFA5C /* TherapySettingsLogManager2.swift in Sources */,
+				D48166162F633DF500294D5B /* TimeRangeHelpers.swift in Sources */,
+				D48166172F633DF500294D5B /* DailyScheduleHost.swift in Sources */,
 				D4DC335C2BD742E600767AF2 /* RestingHeartRate.swift in Sources */,
 				D452CAAD2E8B16380083BBF4 /* DailyCrosswordView.swift in Sources */,
 				D487C7352E8AC32F001C34EF /* TherapySettingsV2.swift in Sources */,
@@ -697,23 +748,38 @@
 				D466C9042D1DF62500E9CE68 /* AuthenticationViewModel.swift in Sources */,
 				D452CA9C2E8AF17D0083BBF4 /* CommunityHub.swift in Sources */,
 				D4CF03A52C9B380F004CD1D3 /* Utilities.swift in Sources */,
+				D481662C2F633E7500294D5B /* Detectors.swift in Sources */,
 				D4991E762E4677D800178EC3 /* HealthDataUploader.swift in Sources */,
 				D4991E772E4677D800178EC3 /* HealthDataFetcher.swift in Sources */,
 				D4991E782E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */,
+				D4B6503E2F732C5300F6D4B7 /* ChameliaStateManager.swift in Sources */,
 				D441B9AB2B6C14BB005E5D79 /* Sleep_Data.swift in Sources */,
+				D481662A2F633E1C00294D5B /* MealDetector.swift in Sources */,
 				D441B9AD2B6C14C6005E5D79 /* CaloriesBurned_Data.swift in Sources */,
 				D46BEDE32E843F8900937E29 /* PeekContainer.swift in Sources */,
 				D46BEDE62E84454600937E29 /* FlowLayout.swift in Sources */,
+				D4B6503C2F7323D600F6D4B7 /* FeatureFrameToChameliaAdapter.swift in Sources */,
+				D48166052F633D1100294D5B /* TherapyFunctionV2.swift in Sources */,
+				D48166062F633D1100294D5B /* TherapyFunction.swift in Sources */,
+				D48166072F633D1100294D5B /* MoodData.swift in Sources */,
 				D452CA992E8AF16A0083BBF4 /* CommunityModels.swift in Sources */,
 				D46BEDE92E8446EC00937E29 /* ThemeManager.swift in Sources */,
 				D452A1272B32630900F66085 /* HealthStore.swift in Sources */,
 				D466C90A2D1DF8FB00E9CE68 /* ProfileView.swift in Sources */,
+				D48166242F633E0200294D5B /* DriftCanvasView.swift in Sources */,
+				D48166252F633E0200294D5B /* FeedbackBoardView.swift in Sources */,
+				D48166262F633E0200294D5B /* PsuedonymService.swift in Sources */,
+				D48166272F633E0200294D5B /* CommunityBoardVM.swift in Sources */,
+				D48166282F633E0200294D5B /* MentorshipThreadView.swift in Sources */,
 				D441B9A92B6C14A8005E5D79 /* BodyMass_Data.swift in Sources */,
 				D438BE012C9276A900C375BF /* AuthView.swift in Sources */,
 				D438BE072C9320B300C375BF /* RootView.swift in Sources */,
+				D4A100022F70000100C0A001 /* ChameliaConfig.swift in Sources */,
 				D400F84E2C2B5A79002E09B7 /* BG_Data.swift in Sources */,
+				D48166132F633DE700294D5B /* ScheduleEditor.swift in Sources */,
 				D46BEDE02E843F0000937E29 /* FloatPulseModifier.swift in Sources */,
 				D46438442B2B5A74005566A3 /* SiteChangeData.swift in Sources */,
+				D48166312F633E9C00294D5B /* TherapySettingsLogManager.swift in Sources */,
 				D46885C62D70FA5900A8EF61 /* UserManager.swift in Sources */,
 				D466C9072D1DF67E00E9CE68 /* SignInEmailViewModel.swift in Sources */,
 				D46438422B2B5A57005566A3 /* SiteChangeUI.swift in Sources */,
@@ -725,6 +791,7 @@
 				D400F84C2C2A0DD3002E09B7 /* BloodGlucose_Data.swift in Sources */,
 				D441B9A32B6C12B7005E5D79 /* HeartRate_Data.swift in Sources */,
 				D441B9A72B6C1428005E5D79 /* Exercise_Data.swift in Sources */,
+				D4F79EB92F73463300498216 /* ChameliaEngine.swift in Sources */,
 				D452CAA72E8AF1B80083BBF4 /* CrosswordMakerView.swift in Sources */,
 				D438BE032C9277A700C375BF /* SignInEmailView.swift in Sources */,
 			);
@@ -734,25 +801,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D46BEDDE2E843D8200937E29 /* TherapyVM.swift in Sources */,
-				D452CA982E8AF16A0083BBF4 /* CommunityModels.swift in Sources */,
-				D46BEDE12E843F0000937E29 /* FloatPulseModifier.swift in Sources */,
-				D48D78AE2E7102D0007DFA5C /* TherapySettingsLogManager2.swift in Sources */,
 				D46438272B2A3FD1005566A3 /* InSiteTests.swift in Sources */,
-				D4991E732E4677D800178EC3 /* HealthDataUploader.swift in Sources */,
-				D4991E742E4677D800178EC3 /* HealthDataFetcher.swift in Sources */,
-				D46BEDDB2E84338C00937E29 /* MoodPicker.swift in Sources */,
-				D452CAA52E8AF1AF0083BBF4 /* CrosswordsHome.swift in Sources */,
-				D46BEDE72E84454600937E29 /* FlowLayout.swift in Sources */,
-				D452CAAE2E8B16380083BBF4 /* DailyCrosswordView.swift in Sources */,
-				D452CAA82E8AF1B80083BBF4 /* CrosswordMakerView.swift in Sources */,
-				D487C7362E8AC32F001C34EF /* TherapySettingsV2.swift in Sources */,
-				D46BEDE42E843F8900937E29 /* PeekContainer.swift in Sources */,
-				D452CAA12E8AF1A50083BBF4 /* CommunityBoardView.swift in Sources */,
-				D452CA9E2E8AF19A0083BBF4 /* CommunityBoard.swift in Sources */,
-				D452CA9B2E8AF17D0083BBF4 /* CommunityHub.swift in Sources */,
-				D4991E752E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */,
-				D46BEDEA2E8446EC00937E29 /* ThemeManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -762,9 +811,6 @@
 			files = (
 				D46438332B2A3FD1005566A3 /* InSiteUITestsLaunchTests.swift in Sources */,
 				D46438312B2A3FD1005566A3 /* InSiteUITests.swift in Sources */,
-				D4991E702E4677D800178EC3 /* HealthDataUploader.swift in Sources */,
-				D4991E712E4677D800178EC3 /* HealthDataFetcher.swift in Sources */,
-				D4991E722E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -818,8 +864,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 447R5TR369;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -839,6 +887,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -878,8 +927,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 447R5TR369;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -892,6 +943,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				VALIDATE_PRODUCT = YES;
@@ -907,7 +959,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"InSite/Preview Content\"";
-				DEVELOPMENT_TEAM = 447R5TR369;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = InSite/Info.plist;
@@ -941,7 +992,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"InSite/Preview Content\"";
-				DEVELOPMENT_TEAM = 447R5TR369;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = InSite/Info.plist;
@@ -969,11 +1019,9 @@
 		D464383A2B2A3FD1005566A3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 447R5TR369;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				MARKETING_VERSION = 1.0;
@@ -989,11 +1037,9 @@
 		D464383B2B2A3FD1005566A3 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 447R5TR369;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				MARKETING_VERSION = 1.0;
@@ -1009,10 +1055,8 @@
 		D464383D2B2A3FD1005566A3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 447R5TR369;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = LilMasala.InSiteUITests;
@@ -1027,10 +1071,8 @@
 		D464383E2B2A3FD1005566A3 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 447R5TR369;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = LilMasala.InSiteUITests;
