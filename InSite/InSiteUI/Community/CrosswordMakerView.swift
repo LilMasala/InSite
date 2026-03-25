@@ -1,4 +1,6 @@
 import SwiftUI
+import FirebaseAuth
+import FirebaseFirestore
 
 public struct QA: Identifiable, Hashable {
     public let id = UUID()
@@ -11,6 +13,9 @@ public final class CrosswordMakerVM: ObservableObject {
     @Published public var pairs: [QA] = []
     @Published public var clue: String = ""
     @Published public var answer: String = ""
+    @Published public var submissionMessage: String?
+
+    private let db = Firestore.firestore()
 
     func addPair() {
         let c = clue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -26,6 +31,45 @@ public final class CrosswordMakerVM: ObservableObject {
     func remove(at offsets: IndexSet) { pairs.remove(atOffsets: offsets) }
 
     var previewRows: [String] { pairs.map { "\($0.answer) — \($0.clue)" } }
+
+    @MainActor
+    func submitToCommunityPool() async {
+        guard let uid = Auth.auth().currentUser?.uid else {
+            submissionMessage = "Sign in to submit clues."
+            return
+        }
+        guard !pairs.isEmpty else {
+            submissionMessage = "Add at least one clue first."
+            return
+        }
+
+        let payload = pairs.map {
+            [
+                "clue": $0.clue,
+                "answer": $0.answer,
+                "owner": $0.owner
+            ]
+        }
+
+        do {
+            let docRef = db.collection("users")
+                .document(uid)
+                .collection("crossword_submissions")
+                .document()
+
+            try await docRef.setData([
+                "entries": payload,
+                "moderation_status": "pending_review",
+                "submitted_at": FieldValue.serverTimestamp()
+            ], merge: true)
+
+            submissionMessage = "Submitted for review."
+            pairs.removeAll()
+        } catch {
+            submissionMessage = "Submission failed."
+            print("[CrosswordMakerVM] submit failed: \(error)")
+        }
+    }
 }
 
 public struct CrosswordMakerView: View {
@@ -105,12 +149,18 @@ public struct CrosswordMakerView: View {
                             Text("Looks good?").font(.subheadline)
                             Spacer()
                             Button {
-                                // TODO: upload to Firestore pool
+                                Task { await vm.submitToCommunityPool() }
                             } label: {
                                 Label("Submit to Community Pool", systemImage: "paperplane.fill")
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(accent)
+                        }
+
+                        if let submissionMessage = vm.submissionMessage {
+                            Text(submissionMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }

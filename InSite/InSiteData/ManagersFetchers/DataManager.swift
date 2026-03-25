@@ -399,7 +399,17 @@ private extension DataManager {
     func syncChameliaAfterHealthSync(userId: String, frame: FeatureFrameHourly, syncDate: Date) async {
         let signalBlob = FeatureFrameToChameliaAdapter.makeSignalBlob(from: frame)
         let numericSignals = signalBlob.numericSignals
-        guard !numericSignals.isEmpty else { return }
+        guard !numericSignals.isEmpty else {
+            print("[DataManager] Skipping Chamelia sync: no numeric signals for latest frame.")
+            return
+        }
+
+        var latestStatus: GraduationStatus?
+        var latestRecommendation: RecommendationPackage?
+
+        print(
+            "[DataManager] Chamelia sync start user=\(userId) frame=\(signalBlob.hourStartUtc) numericSignals=\(numericSignals.count)"
+        )
 
         do {
             try await chameliaEngine.observe(
@@ -415,28 +425,68 @@ private extension DataManager {
             return
         }
 
+        do {
+            latestStatus = try await chameliaEngine.graduationStatus(patientId: userId)
+        } catch ChameliaError.notFound {
+            print("[DataManager] Chamelia patient not initialized while loading status.")
+        } catch {
+            print("[DataManager] Chamelia graduation status failed: \(error)")
+        }
+
         if shouldRunDailyChameliaStep(userId: userId, on: syncDate) {
             do {
-                _ = try await chameliaEngine.step(
+                print("[DataManager] Running daily Chamelia step for user=\(userId)")
+                let stepResponse = try await chameliaEngine.stepResult(
                     patientId: userId,
                     timestamp: signalBlob.hourStartUtc.timeIntervalSince1970,
                     signals: numericSignals
                 )
+                latestRecommendation = stepResponse.recommendation
                 markDailyChameliaStepRan(userId: userId, on: syncDate)
+                print("[DataManager] Daily Chamelia step completed for user=\(userId)")
+                let statusSnapshot = latestStatus
+                let recommendationSnapshot = latestRecommendation
+                await MainActor.run {
+                    ChameliaDashboardStore.shared.update(
+                        userId: userId,
+                        status: statusSnapshot,
+                        recId: stepResponse.recId,
+                        recommendation: recommendationSnapshot,
+                        latestSignals: numericSignals
+                    )
+                }
             } catch ChameliaError.notFound {
                 print("[DataManager] Chamelia patient not initialized; skipping daily step.")
             } catch {
                 print("[DataManager] Chamelia step failed: \(error)")
             }
+        } else {
+            print("[DataManager] Daily Chamelia step already ran for user=\(userId)")
+        }
+
+        let statusSnapshot = latestStatus
+        let recommendationSnapshot = latestRecommendation
+        await MainActor.run {
+            ChameliaDashboardStore.shared.update(
+                userId: userId,
+                status: statusSnapshot,
+                recommendation: recommendationSnapshot,
+                latestSignals: numericSignals,
+                clearRecommendation: false
+            )
         }
 
         if shouldRunDailyChameliaSave(userId: userId, on: syncDate) {
             do {
+                print("[DataManager] Running daily Chamelia save for user=\(userId)")
                 _ = try await chameliaStateManager.saveToFirebase(userId: userId)
                 markDailyChameliaSaveRan(userId: userId, on: syncDate)
+                print("[DataManager] Daily Chamelia save completed for user=\(userId)")
             } catch {
                 print("[DataManager] Chamelia save failed: \(error)")
             }
+        } else {
+            print("[DataManager] Daily Chamelia save already ran for user=\(userId)")
         }
     }
 

@@ -2,6 +2,7 @@ import Foundation
 
 enum ChameliaStateManagerError: Error {
     case invalidResponse
+    case notFound
     case unexpectedStatusCode(Int)
     case invalidPayload
 }
@@ -73,6 +74,9 @@ final class ChameliaStateManager {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 404 {
+                throw ChameliaStateManagerError.notFound
+            }
             throw ChameliaStateManagerError.unexpectedStatusCode(httpResponse.statusCode)
         }
 

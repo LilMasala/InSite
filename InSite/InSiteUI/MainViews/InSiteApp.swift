@@ -9,6 +9,7 @@ import FirebaseCore
 import FirebaseAppCheck
 import FirebaseAuth
 
+
 class AppDelegate: NSObject, UIApplicationDelegate {
   func application(
     _ application: UIApplication,
@@ -16,14 +17,21 @@ class AppDelegate: NSObject, UIApplicationDelegate {
   ) -> Bool {
 
     #if DEBUG
-    // 1) Set the App Check provider BEFORE configure()
     AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
-    // (optional) make logs verbose so you see the token line
     FirebaseConfiguration.shared.setLoggerLevel(.debug)
     #endif
 
-    // 2) Then configure Firebase
     FirebaseApp.configure()
+
+    #if DEBUG
+    AppCheck.appCheck().token(forcingRefresh: true) { token, error in
+      if let error = error {
+        print("app check token fetch failed:", error)
+      } else {
+        print("app check token fetch succeeded:", token?.token ?? "nil")
+      }
+    }
+    #endif
 
     return true
   }

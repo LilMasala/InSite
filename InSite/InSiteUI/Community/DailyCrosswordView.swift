@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import FirebaseFirestore
 
 // 1) HiddenKeyCapture: a single invisible field that grabs keystrokes
 struct HiddenKeyCapture: UIViewRepresentable {
@@ -102,7 +103,7 @@ struct DailyCrosswordView: View {
             }
         }
         .padding(.vertical, 8)
-        .onAppear { vm.spawnDaily() }
+        .task { await vm.spawnDaily() }
     }
 
     private var header: some View {
@@ -154,6 +155,7 @@ final class MiniCrosswordVM: ObservableObject {
     @Published private(set) var elapsed: TimeInterval = 0
 
     let size = 9
+    private let db = Firestore.firestore()
     
     
     init() {
@@ -193,7 +195,8 @@ final class MiniCrosswordVM: ObservableObject {
     }
 
     // MARK: - Lifecycle
-    func spawnDaily() {
+    @MainActor
+    func spawnDaily() async {
         // Merge standard + community pool (stubbed)
         let standard: [QA] = [
             .init(clue: "Rapid insulin brand", answer: "NOVOLOG"),
@@ -202,13 +205,7 @@ final class MiniCrosswordVM: ObservableObject {
             .init(clue: "Sensor brand", answer: "DEXCOM"),
             .init(clue: "Basal mode", answer: "SLEEP")
         ]
-        // Community pool (simulate multiple owners; enforce max 1 per owner)
-        let community: [QA] = [
-            .init(clue: "T1D meme staple", answer: "ALARM", owner: "u1"),
-            .init(clue: "Nighttime rescue", answer: "FRUITSNACKS", owner: "u2"),
-            .init(clue: "High alert", answer: "ARROWUP", owner: "u3"),
-            .init(clue: "Pump adhesive", answer: "TAPE", owner: "u4")
-        ]
+        let community = await fetchApprovedCommunityPairs()
 
         let merged = pickCommunityFair(community, targetShare: 0.3) + standard.shuffled()
         buildMini(from: merged)
@@ -216,6 +213,34 @@ final class MiniCrosswordVM: ObservableObject {
         // timer
         elapsed = 0
         startTimer()
+    }
+
+    private func fetchApprovedCommunityPairs() async -> [QA] {
+        do {
+            let snapshot = try await db.collectionGroup("crossword_submissions")
+                .whereField("moderation_status", isEqualTo: "approved")
+                .getDocuments()
+
+            return snapshot.documents.flatMap { document -> [QA] in
+                let owner = document.reference.parent.parent?.documentID ?? "community"
+                let entries = document.data()["entries"] as? [[String: Any]] ?? []
+                let mapped: [QA] = entries.compactMap { entry -> QA? in
+                    guard
+                        let clue = entry["clue"] as? String,
+                        let answer = entry["answer"] as? String,
+                        !clue.isEmpty,
+                        !answer.isEmpty
+                    else {
+                        return nil
+                    }
+                    return QA(clue: clue, answer: answer, owner: owner)
+                }
+                return mapped
+            }
+        } catch {
+            print("[MiniCrosswordVM] approved clue fetch failed: \(error)")
+            return []
+        }
     }
 
     func pickCommunityFair(_ pool: [QA], targetShare: Double) -> [QA] {

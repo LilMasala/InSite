@@ -29,7 +29,8 @@ public struct CommunityHub: View {
                                 icon: "text.bubble.fill",
                                 title: "Community Board",
                                 subtitle: "Anonymous posts • upvotes • time filters",
-                                accent: accent
+                                accent: accent,
+                                status: .live
                             )
                         }
                         .buttonStyle(.plain)
@@ -40,11 +41,28 @@ public struct CommunityHub: View {
                             FeatureTile(
                                 icon: "square.grid.3x3.fill.square",
                                 title: "Crosswords",
-                                subtitle: "Standard puzzles + community maker",
-                                accent: accent
+                                subtitle: "Daily puzzle is live • standard mode is rolling out",
+                                accent: accent,
+                                status: .rollingOut
                             )
                         }
                         .buttonStyle(.plain)
+
+                        FeatureTile(
+                            icon: "bubble.left.and.exclamationmark.bubble.right.fill",
+                            title: "Feedback Board",
+                            subtitle: "Structured product feedback is coming next",
+                            accent: accent,
+                            status: .comingSoon
+                        )
+
+                        FeatureTile(
+                            icon: "person.2.wave.2.fill",
+                            title: "Mentorship",
+                            subtitle: "Peer guidance threads are staged for a later release",
+                            accent: accent,
+                            status: .comingSoon
+                        )
                     }
 
                     aboutCard
@@ -70,7 +88,7 @@ public struct CommunityHub: View {
                     .frame(width: 10, height: 10)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Welcome").font(.headline)
-                    Text("Connect, vent, and have some fun — anonymously.")
+                    Text("The board is live now. Games and guided support are rolling out in phases.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -85,7 +103,7 @@ public struct CommunityHub: View {
                 Text("About")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Text("The Community Board is anonymous and uses lightweight upvotes with time filters (Today, 7d, 30d). Crosswords let you play standard puzzles and build weekly community-made ones from user-submitted clues.")
+                Text("The Community Board is the live social layer today. Crosswords are shipping in stages, starting with the daily community puzzle and clue submission flow. Feedback and mentorship surfaces are intentionally marked as upcoming so nothing feels half-finished.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -96,10 +114,25 @@ public struct CommunityHub: View {
 // MARK: - Shared building blocks
 
 fileprivate struct FeatureTile: View {
+    enum Status {
+        case live
+        case rollingOut
+        case comingSoon
+
+        var label: String {
+            switch self {
+            case .live: return "Live"
+            case .rollingOut: return "Rolling Out"
+            case .comingSoon: return "Coming Soon"
+            }
+        }
+    }
+
     var icon: String
     var title: String
     var subtitle: String
     var accent: Color
+    var status: Status
 
     var body: some View {
         HStack(spacing: 14) {
@@ -112,12 +145,17 @@ fileprivate struct FeatureTile: View {
             .frame(width: 48, height: 48)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.headline)
+                HStack(spacing: 8) {
+                    Text(title).font(.headline)
+                    statusBadge
+                }
                 Text(subtitle).font(.footnote).foregroundStyle(.secondary)
             }
             Spacer()
-            Image(systemName: "chevron.right")
-                .foregroundStyle(.secondary)
+            if status != .comingSoon {
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(14)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -126,6 +164,29 @@ fileprivate struct FeatureTile: View {
                 .stroke(.primary.opacity(0.06), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.08), radius: 10, y: 6)
+        .opacity(status == .comingSoon ? 0.92 : 1.0)
+    }
+
+    private var statusBadge: some View {
+        Text(status.label)
+            .font(.caption2.weight(.semibold))
+            .textCase(.uppercase)
+            .tracking(0.6)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(statusColor.opacity(0.14), in: Capsule())
+            .foregroundStyle(statusColor)
+    }
+
+    private var statusColor: Color {
+        switch status {
+        case .live:
+            return accent
+        case .rollingOut:
+            return .orange
+        case .comingSoon:
+            return .secondary
+        }
     }
 }
 

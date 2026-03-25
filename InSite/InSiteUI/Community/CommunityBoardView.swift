@@ -27,7 +27,7 @@ public struct CommunityBoardView: View {
                             text: $composerText,
                             accent: accent,
                             charLimit: charLimit,
-                            onSend: handleSend
+                            onSend: { Task { await handleSend() } }
                         )
 
                         if !composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -83,7 +83,7 @@ public struct CommunityBoardView: View {
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
             }
-            .refreshable { vm.refresh() }
+            .refreshable { await vm.refresh() }
         }
         .navigationTitle("Community Board")
         .navigationBarTitleDisplayMode(.inline)
@@ -103,6 +103,9 @@ public struct CommunityBoardView: View {
                     vm.sortTop = sortTop
                 }
             }
+        }
+        .task {
+            await vm.refresh()
         }
         .onAppear { if !appeared { appeared = true } }
     }
@@ -132,13 +135,13 @@ public struct CommunityBoardView: View {
     }
 
     // MARK: - Send
-    private func handleSend() {
+    private func handleSend() async {
         let text = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            vm.posts.insert(.init(text: text, createdAt: Date(), upvotes: 0, comments: 0), at: 0)
             composerText = ""
         }
+        await vm.submitPost(text: text)
     }
 }
 
@@ -259,7 +262,6 @@ fileprivate struct PostCard: View {
     var onRemoveUpvote: () -> Void
     var preview: Bool
 
-    @State private var upvoted = false
     @State private var bounce = false
 
     var body: some View {
@@ -282,20 +284,19 @@ fileprivate struct PostCard: View {
             HStack(spacing: 14) {
                 Button {
                     guard !preview else { return }
-                    if #available(iOS 17.0, *), !upvoted { UIApplication.shared.prepareFeedback() }
-                    upvoted.toggle()
+                    if #available(iOS 17.0, *), !post.viewerHasUpvoted { UIApplication.shared.prepareFeedback() }
                     bounce = true
-                    if upvoted { onUpvote() } else { onRemoveUpvote() }
+                    if post.viewerHasUpvoted { onRemoveUpvote() } else { onUpvote() }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { bounce = false }
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: upvoted ? "arrow.up.square.fill" : "arrow.up.square")
+                        Image(systemName: post.viewerHasUpvoted ? "arrow.up.square.fill" : "arrow.up.square")
                         // IMPORTANT: show only source of truth (no local +1)
                         Text("\(post.upvotes)").monospacedDigit()
                     }
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(upvoted ? accent : accent.opacity(0.9))
+                .foregroundStyle(post.viewerHasUpvoted ? accent : accent.opacity(0.9))
                 .scaleEffect(bounce ? 1.08 : 1.0)
 
                 Label("\(post.comments)", systemImage: "text.bubble")
@@ -317,10 +318,6 @@ fileprivate struct PostCard: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(.primary.opacity(0.06), lineWidth: 1))
         .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
-        .task {
-            // if you later persist vote-state per user, seed it here
-            upvoted = false
-        }
     }
 
     private func relative(_ date: Date) -> String {

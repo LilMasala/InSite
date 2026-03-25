@@ -1,4 +1,5 @@
 import Foundation
+import FirebaseAuth
 import HealthKit
 import HealthKitUI
 import SwiftUI
@@ -530,6 +531,8 @@ struct HomeScreen: View {
     @State private var therapySummary = "Profile 1 · Basal 0.9–1.1"
     @State private var isSyncing = false
     @State private var syncTick = 0
+    @State private var activeBanner: HomeBanner?
+    @ObservedObject private var chameliaDashboard = ChameliaDashboardStore.shared
     @EnvironmentObject private var themeManager: ThemeManager
     private var theme: HomeTheme { themeManager.theme }  // computed proxy
     // Layout
@@ -588,6 +591,39 @@ struct HomeScreen: View {
                             }
                             .buttonStyle(.plain)
 
+                            NavigationLink {
+                                if let recommendation = chameliaDashboard.state.recommendation {
+                                    RecommendationView(
+                                        recommendation: recommendation,
+                                        recId: chameliaDashboard.state.recId,
+                                        status: chameliaDashboard.state.status,
+                                        onApply: applyCurrentRecommendation,
+                                        onSkip: skipCurrentRecommendation
+                                    )
+                                    .environmentObject(themeManager)
+                                } else {
+                                    ZStack {
+                                        BreathingBackground(theme: theme)
+                                            .ignoresSafeArea()
+                                        ShadowProgressView(status: shadowProgressStatus)
+                                            .environmentObject(themeManager)
+                                            .padding(16)
+                                    }
+                                    .navigationTitle("Shadow Progress")
+                                    .navigationBarTitleDisplayMode(.inline)
+                                }
+                            } label: {
+                                RecommendationTile(
+                                    status: chameliaDashboard.state.status,
+                                    recommendation: chameliaDashboard.state.recommendation,
+                                    accent: theme.accent,
+                                    isRefreshing: chameliaDashboard.isRefreshing,
+                                    errorMessage: chameliaDashboard.latestErrorMessage
+                                )
+                                .floatAndPulse(seed: 0.73)
+                            }
+                            .buttonStyle(.plain)
+
                             // Sync (liquid-ish wave when syncing)
                             Button {
                                 guard !isSyncing else { return }
@@ -596,6 +632,7 @@ struct HomeScreen: View {
                                     isSyncing = false
                                     lastSyncText = "Synced just now"
                                     syncTick &+= 1
+                                    Task { await refreshChameliaDashboard() }
                                 }
                             } label: {
                                 SyncTile(
@@ -632,6 +669,13 @@ struct HomeScreen: View {
                     .padding(.top, 12)
                 }
             }
+            .overlay(alignment: .top) {
+                if let activeBanner {
+                    FloatingBanner(banner: activeBanner)
+                        .padding(.top, 10)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -649,9 +693,15 @@ struct HomeScreen: View {
             .task {
                             DataManager.shared.requestAuthorization { _ in }
                             therapyVM.reload()   // ensure it loads on first appear
+                            await refreshChameliaDashboard()
                         }
             .task {
                 DataManager.shared.requestAuthorization { _ in }
+            }
+            .onChange(of: chameliaDashboard.latestErrorMessage) { message in
+                guard let message, !message.isEmpty else { return }
+                presentBanner(message, tone: .warning)
+                chameliaDashboard.clearTransientError()
             }
         }
     }
@@ -697,6 +747,59 @@ private struct HeroHeader: View {
 
             Spacer()
         }
+        .padding(.horizontal, 16)
+    }
+}
+
+private struct HomeBanner: Equatable {
+    enum Tone {
+        case success
+        case warning
+        case neutral
+
+        var color: Color {
+            switch self {
+            case .success: return .green
+            case .warning: return .orange
+            case .neutral: return .secondary
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .success: return "checkmark.circle.fill"
+            case .warning: return "exclamationmark.triangle.fill"
+            case .neutral: return "brain.head.profile"
+            }
+        }
+    }
+
+    var message: String
+    var tone: Tone
+}
+
+private struct FloatingBanner: View {
+    let banner: HomeBanner
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: banner.tone.icon)
+                .foregroundStyle(banner.tone.color)
+            Text(banner.message)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: 520)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(
+            Capsule()
+                .stroke(banner.tone.color.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 6)
         .padding(.horizontal, 16)
     }
 }
@@ -1047,6 +1150,142 @@ private extension Color {
         // super-lightweight approximation (good enough for tiny shifts)
         // for precise HSB math, keep your existing mapping utilities
         return self.opacity(1.0) // placeholder to avoid heavy conversions here
+    }
+}
+
+private extension HomeScreen {
+    var shadowProgressStatus: GraduationStatus {
+        chameliaDashboard.state.status
+            ?? GraduationStatus(
+                graduated: false,
+                nDays: 0,
+                winRate: 0,
+                safetyViolations: 0,
+                consecutiveDays: 0
+            )
+    }
+
+    func refreshChameliaDashboard() async {
+        await chameliaDashboard.bootstrapCurrentUser()
+    }
+
+    func presentBanner(_ message: String, tone: HomeBanner.Tone) {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+            activeBanner = HomeBanner(message: message, tone: tone)
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 2_600_000_000)
+            await MainActor.run {
+                guard activeBanner?.message == message else { return }
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
+                    activeBanner = nil
+                }
+            }
+        }
+    }
+
+    func applyCurrentRecommendation() {
+        guard let user = Auth.auth().currentUser else { return }
+        guard let recommendation = chameliaDashboard.state.recommendation else { return }
+        let recId = chameliaDashboard.state.recId
+        let latestSignals = chameliaDashboard.state.latestSignals
+
+        let store = ProfileDataStore()
+        var profiles = store.loadProfiles()
+        guard let targetIndex = activeProfileIndex(in: profiles, store: store) else { return }
+
+        let existingProfile = profiles[targetIndex]
+        let updatedProfile = DiabeticProfile(
+            id: existingProfile.id,
+            name: existingProfile.name,
+            hourRanges: existingProfile.hourRanges.map { applyDeltas(recommendation.action.deltas, to: $0) }
+        )
+        profiles[targetIndex] = updatedProfile
+
+        store.saveProfiles(profiles)
+        store.saveActiveProfileID(updatedProfile.id)
+        therapyVM.reload()
+        lastSyncText = "Recommendation applied"
+        chameliaDashboard.clearRecommendation(userId: user.uid)
+        presentBanner("Recommendation applied to your active therapy profile.", tone: .success)
+
+        Task {
+            do {
+                _ = try? await TherapySettingsLogManager.shared.logTherapySettingsChange(profile: updatedProfile)
+                if let recId {
+                    try await ChameliaEngine.shared.recordOutcome(
+                        patientId: user.uid,
+                        recId: Int(recId),
+                        response: "accept",
+                        signals: latestSignals,
+                        cost: 0
+                    )
+                }
+                _ = try await ChameliaStateManager.shared.saveToFirebase(userId: user.uid)
+            } catch {
+                await MainActor.run {
+                    presentBanner(readableMessage(for: error), tone: .warning)
+                }
+            }
+        }
+    }
+
+    func skipCurrentRecommendation() {
+        guard let user = Auth.auth().currentUser else { return }
+        let recId = chameliaDashboard.state.recId
+        let latestSignals = chameliaDashboard.state.latestSignals
+        chameliaDashboard.clearRecommendation(userId: user.uid)
+        lastSyncText = "Recommendation skipped"
+        presentBanner("Recommendation skipped for now.", tone: .neutral)
+
+        Task {
+            do {
+                if let recId {
+                    try await ChameliaEngine.shared.recordOutcome(
+                        patientId: user.uid,
+                        recId: Int(recId),
+                        response: "reject",
+                        signals: latestSignals,
+                        cost: 0
+                    )
+                }
+                _ = try await ChameliaStateManager.shared.saveToFirebase(userId: user.uid)
+            } catch {
+                await MainActor.run {
+                    presentBanner(readableMessage(for: error), tone: .warning)
+                }
+            }
+        }
+    }
+
+    func readableMessage(for error: Error) -> String {
+        if let localized = error as? LocalizedError,
+           let description = localized.errorDescription {
+            return description
+        }
+        return error.localizedDescription
+    }
+
+    func activeProfileIndex(in profiles: [DiabeticProfile], store: ProfileDataStore) -> Int? {
+        if let activeId = store.loadActiveProfileID(),
+           let index = profiles.firstIndex(where: { $0.id == activeId }) {
+            return index
+        }
+        return profiles.indices.first
+    }
+
+    func applyDeltas(_ deltas: [String: Double], to range: HourRange) -> HourRange {
+        var updated = range
+        if let basalDelta = deltas["basal_delta"] {
+            updated.basalRate = max(0, updated.basalRate * (1 + basalDelta))
+        }
+        if let isfDelta = deltas["isf_delta"] {
+            updated.insulinSensitivity = max(0, updated.insulinSensitivity * (1 + isfDelta))
+        }
+        if let crDelta = deltas["cr_delta"] {
+            updated.carbRatio = max(0, updated.carbRatio * (1 + crDelta))
+        }
+        return updated
     }
 }
 

@@ -338,4 +338,36 @@ final class InSiteTests: XCTestCase {
         XCTAssertNil(numericSignals["cycle_phase_follicular"])
     }
 
+    func testQuestionnaireToPriorsAllNilReturnsPopulationDefaults() throws {
+        let result = QuestionnaireToPriors.compute(QuestionnaireAnswers())
+        let isf = try XCTUnwrap(result.physicalPriors["isf_multiplier"])
+        let sleepOffset = try XCTUnwrap(result.physicalPriors["sleep_schedule_offset_h"])
+        let sleepRegularity = try XCTUnwrap(result.physicalPriors["sleep_regularity"])
+
+        XCTAssertEqual(isf.mean, 1.00, accuracy: 0.0001)
+        XCTAssertEqual(sleepOffset.mean, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(sleepRegularity.std, 0.14, accuracy: 0.0001)
+        XCTAssertEqual(result.aggressiveness, 0.5, accuracy: 0.0001)
+    }
+
+    func testQuestionnaireToPriorsAthleteBoostsISF() throws {
+        let answers = QuestionnaireAnswers(
+            exerciseFreq: .daily,
+            exerciseType: .cardio,
+            exerciseIntensity: .hard,
+            fitnessLevel: .veryFit
+        )
+
+        let result = QuestionnaireToPriors.compute(answers)
+        XCTAssertGreaterThan(result.physicalPriors["isf_multiplier"]?.mean ?? 0, 1.10)
+    }
+
+    func testQuestionnaireToPriorsNightOwlShiftsSleepOffset() throws {
+        let answers = QuestionnaireAnswers(bedtimeCategory: .veryLate)
+        let result = QuestionnaireToPriors.compute(answers)
+
+        XCTAssertGreaterThan(result.physicalPriors["sleep_schedule_offset_h"]?.mean ?? 0, 2.5)
+        XCTAssertGreaterThan(result.physicalPriors["sleep_schedule_offset_h"]?.std ?? 0, 0)
+    }
+
 }

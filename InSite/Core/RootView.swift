@@ -11,6 +11,7 @@ struct RootView: View {
     
     @State private var showSignInView: Bool = false
     @State private var restoredChameliaUserId: String?
+    @State private var showChameliaOnboarding = false
     
     
     var body: some View {
@@ -26,30 +27,46 @@ struct RootView: View {
             do {
                 let authUser = try AuthManager.shared.getAuthenticatedUser()
                 self.showSignInView = false
-                self.restoreChameliaStateIfNeeded(for: authUser)
+                self.updateOnboardingPresentation(for: authUser)
+                if !showChameliaOnboarding {
+                    self.restoreChameliaStateIfNeeded(for: authUser)
+                }
                 _ = try AuthManager.shared.getProvider()
             } catch {
                 print("Auth error: \(error)")
                 self.showSignInView = true
                 self.restoredChameliaUserId = nil
+                self.showChameliaOnboarding = false
             }
         }
         .onChange(of: showSignInView) { isShowingSignIn in
             guard !isShowingSignIn else {
                 restoredChameliaUserId = nil
+                showChameliaOnboarding = false
                 return
             }
 
             do {
                 let authUser = try AuthManager.shared.getAuthenticatedUser()
-                restoreChameliaStateIfNeeded(for: authUser)
+                updateOnboardingPresentation(for: authUser)
+                if !showChameliaOnboarding {
+                    restoreChameliaStateIfNeeded(for: authUser)
+                }
             } catch {
                 print("Auth error: \(error)")
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .requestChameliaQuestionnaireOnboarding)) { _ in
+            showChameliaOnboarding = true
+        }
         .fullScreenCover(isPresented: $showSignInView) {
             NavigationStack{
                 AuthView(showSignInView: $showSignInView)
+            }
+        }
+        .fullScreenCover(isPresented: $showChameliaOnboarding) {
+            QuestionnaireOnboardingView(isPresented: $showChameliaOnboarding) { userId in
+                restoredChameliaUserId = userId
             }
         }
     }
@@ -63,11 +80,47 @@ struct RootView: View {
         Task {
             do {
                 _ = try await ChameliaStateManager.shared.loadFromFirebase(userId: authUser.uid)
+                print("Chamelia state load succeeded for user: \(authUser.uid)")
+            } catch ChameliaStateManagerError.notFound {
+                do {
+                    let preferences = legacyPreferences(for: authUser.uid)
+                        ?? ChameliaPreferences(
+                            aggressiveness: 0.5,
+                            hypoglycemiaFear: 0.5,
+                            burdenSensitivity: 0.5,
+                            persona: "default"
+                        )
+                    try await ChameliaEngine.shared.initialize(
+                        patientId: authUser.uid,
+                        preferences: preferences
+                    )
+                    restoredChameliaUserId = authUser.uid
+                    print("Chamelia first-run initialize succeeded for user: \(authUser.uid)")
+                } catch {
+                    restoredChameliaUserId = nil
+                    print("Chamelia initialize failed for user \(authUser.uid): \(error)")
+                }
             } catch {
                 restoredChameliaUserId = nil
-                print("Chamelia load error: \(error)")
+                print("Chamelia load failed for user \(authUser.uid): \(error)")
             }
         }
+    }
+
+    private func updateOnboardingPresentation(for authUser: AuthDataResultModel) {
+        guard !showSignInView else {
+            showChameliaOnboarding = false
+            return
+        }
+        guard !authUser.isAnonymous else {
+            showChameliaOnboarding = false
+            return
+        }
+        showChameliaOnboarding = !ChameliaQuestionnaireStore.isCompleted()
+    }
+
+    private func legacyPreferences(for userId: String) -> ChameliaPreferences? {
+        nil
     }
 }
 

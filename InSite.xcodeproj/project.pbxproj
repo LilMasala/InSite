@@ -112,6 +112,14 @@
 		D4CF03A72C9F2F07004CD1D3 /* SignInGoogleHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4CF03A62C9F2F07004CD1D3 /* SignInGoogleHelper.swift */; };
 		D4DC335C2BD742E600767AF2 /* RestingHeartRate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4DC335B2BD742E600767AF2 /* RestingHeartRate.swift */; };
 		D4F79EB92F73463300498216 /* ChameliaEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79EB82F73463300498216 /* ChameliaEngine.swift */; };
+		D4F79EBB2F735CFB00498216 /* ShadowProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79EBA2F735CFB00498216 /* ShadowProgressView.swift */; };
+		D4F79EBD2F735DF400498216 /* ChameliaDashboardStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79EBC2F735DF400498216 /* ChameliaDashboardStore.swift */; };
+		D4F79EBF2F735E2A00498216 /* RecommendationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79EBE2F735E2A00498216 /* RecommendationView.swift */; };
+		D4F79EC12F735E4500498216 /* RecommendationTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79EC02F735E4500498216 /* RecommendationTile.swift */; };
+		D4F79EC32F735E8700498216 /* LegacyOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79EC22F735E8700498216 /* LegacyOnboardingView.swift */; };
+		D4F79EC72F737A5200498216 /* QuestionnaireAnswers.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79EC62F737A5200498216 /* QuestionnaireAnswers.swift */; };
+		D4F79EC92F737ACE00498216 /* QuestionnaireToPriors.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79EC82F737ACE00498216 /* QuestionnaireToPriors.swift */; };
+		D4F79ECB2F737B5500498216 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79ECA2F737B5500498216 /* OnboardingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -212,6 +220,14 @@
 		D4CF03A62C9F2F07004CD1D3 /* SignInGoogleHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInGoogleHelper.swift; sourceTree = "<group>"; };
 		D4DC335B2BD742E600767AF2 /* RestingHeartRate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RestingHeartRate.swift; sourceTree = "<group>"; };
 		D4F79EB82F73463300498216 /* ChameliaEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChameliaEngine.swift; sourceTree = "<group>"; };
+		D4F79EBA2F735CFB00498216 /* ShadowProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShadowProgressView.swift; sourceTree = "<group>"; };
+		D4F79EBC2F735DF400498216 /* ChameliaDashboardStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChameliaDashboardStore.swift; sourceTree = "<group>"; };
+		D4F79EBE2F735E2A00498216 /* RecommendationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationView.swift; sourceTree = "<group>"; };
+		D4F79EC02F735E4500498216 /* RecommendationTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationTile.swift; sourceTree = "<group>"; };
+		D4F79EC22F735E8700498216 /* LegacyOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyOnboardingView.swift; sourceTree = "<group>"; };
+		D4F79EC62F737A5200498216 /* QuestionnaireAnswers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionnaireAnswers.swift; sourceTree = "<group>"; };
+		D4F79EC82F737ACE00498216 /* QuestionnaireToPriors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionnaireToPriors.swift; sourceTree = "<group>"; };
+		D4F79ECA2F737B5500498216 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -328,6 +344,9 @@
 				D46438172B2A3FD0005566A3 /* HomeScreen.swift */,
 				D46438152B2A3FD0005566A3 /* InSiteApp.swift */,
 				D46438412B2B5A57005566A3 /* SiteChangeUI.swift */,
+				D4F79EBA2F735CFB00498216 /* ShadowProgressView.swift */,
+				D4F79EBE2F735E2A00498216 /* RecommendationView.swift */,
+				D4F79EC02F735E4500498216 /* RecommendationTile.swift */,
 			);
 			path = MainViews;
 			sourceTree = "<group>";
@@ -372,6 +391,8 @@
 				D464381B2B2A3FD1005566A3 /* Preview Content */,
 				D4B6503D2F732C5300F6D4B7 /* ChameliaStateManager.swift */,
 				D4F79EB82F73463300498216 /* ChameliaEngine.swift */,
+				D4F79EBC2F735DF400498216 /* ChameliaDashboardStore.swift */,
+				D4F79EC42F737A2400498216 /* Chamelia */,
 			);
 			path = InSite;
 			sourceTree = "<group>";
@@ -407,6 +428,7 @@
 				D452CA962E8AF1440083BBF4 /* MainViews */,
 				D452CA952E8AF0E90083BBF4 /* Tools */,
 				D452CA942E8AF0E00083BBF4 /* Community */,
+				D4F79EC52F737A2400498216 /* Chamelia */,
 			);
 			path = InSiteUI;
 			sourceTree = "<group>";
@@ -439,6 +461,7 @@
 				D466C9022D1DF61000E9CE68 /* Authentication */,
 				D466C9052D1DF65700E9CE68 /* Subviews */,
 				D466C8FF2D1DF5AF00E9CE68 /* Settings */,
+				D4F79EC22F735E8700498216 /* LegacyOnboardingView.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -493,6 +516,23 @@
 				D4CF03A42C9B380F004CD1D3 /* Utilities.swift */,
 			);
 			path = Utilities;
+			sourceTree = "<group>";
+		};
+		D4F79EC42F737A2400498216 /* Chamelia */ = {
+			isa = PBXGroup;
+			children = (
+				D4F79EC62F737A5200498216 /* QuestionnaireAnswers.swift */,
+				D4F79EC82F737ACE00498216 /* QuestionnaireToPriors.swift */,
+			);
+			path = Chamelia;
+			sourceTree = "<group>";
+		};
+		D4F79EC52F737A2400498216 /* Chamelia */ = {
+			isa = PBXGroup;
+			children = (
+				D4F79ECA2F737B5500498216 /* OnboardingView.swift */,
+			);
+			path = Chamelia;
 			sourceTree = "<group>";
 		};
 		E1A100012E90000100A0A001 /* IndividualMethods */ = {
@@ -726,14 +766,17 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D4F79EC32F735E8700498216 /* LegacyOnboardingView.swift in Sources */,
 				D48165F02F633CEF00294D5B /* CTXBuilder.swift in Sources */,
 				D48165F12F633CEF00294D5B /* FeatureCTX.swift in Sources */,
 				D48165F22F633CEF00294D5B /* FeatureFrames.swift in Sources */,
 				D48165F32F633CEF00294D5B /* FeatureJoiner.swift in Sources */,
+				D4F79EC92F737ACE00498216 /* QuestionnaireToPriors.swift in Sources */,
 				D441B9BA2B729204005E5D79 /* Profile.swift in Sources */,
 				D438BE092C9323B300C375BF /* SettingsView.swift in Sources */,
 				D438BE052C93176E00C375BF /* AuthManager.swift in Sources */,
 				D452A1252B325E9D00F66085 /* Menstrual_Data.swift in Sources */,
+				D4F79EBD2F735DF400498216 /* ChameliaDashboardStore.swift in Sources */,
 				D46BEDDA2E84338C00937E29 /* MoodPicker.swift in Sources */,
 				D441B9AF2B6C1969005E5D79 /* DataManager.swift in Sources */,
 				D48166162F633DF500294D5B /* TimeRangeHelpers.swift in Sources */,
@@ -747,16 +790,19 @@
 				D452CAA22E8AF1A50083BBF4 /* CommunityBoardView.swift in Sources */,
 				D466C9042D1DF62500E9CE68 /* AuthenticationViewModel.swift in Sources */,
 				D452CA9C2E8AF17D0083BBF4 /* CommunityHub.swift in Sources */,
+				D4F79EC12F735E4500498216 /* RecommendationTile.swift in Sources */,
 				D4CF03A52C9B380F004CD1D3 /* Utilities.swift in Sources */,
 				D481662C2F633E7500294D5B /* Detectors.swift in Sources */,
 				D4991E762E4677D800178EC3 /* HealthDataUploader.swift in Sources */,
 				D4991E772E4677D800178EC3 /* HealthDataFetcher.swift in Sources */,
 				D4991E782E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */,
+				D4F79EC72F737A5200498216 /* QuestionnaireAnswers.swift in Sources */,
 				D4B6503E2F732C5300F6D4B7 /* ChameliaStateManager.swift in Sources */,
 				D441B9AB2B6C14BB005E5D79 /* Sleep_Data.swift in Sources */,
 				D481662A2F633E1C00294D5B /* MealDetector.swift in Sources */,
 				D441B9AD2B6C14C6005E5D79 /* CaloriesBurned_Data.swift in Sources */,
 				D46BEDE32E843F8900937E29 /* PeekContainer.swift in Sources */,
+				D4F79EBB2F735CFB00498216 /* ShadowProgressView.swift in Sources */,
 				D46BEDE62E84454600937E29 /* FlowLayout.swift in Sources */,
 				D4B6503C2F7323D600F6D4B7 /* FeatureFrameToChameliaAdapter.swift in Sources */,
 				D48166052F633D1100294D5B /* TherapyFunctionV2.swift in Sources */,
@@ -769,11 +815,13 @@
 				D48166242F633E0200294D5B /* DriftCanvasView.swift in Sources */,
 				D48166252F633E0200294D5B /* FeedbackBoardView.swift in Sources */,
 				D48166262F633E0200294D5B /* PsuedonymService.swift in Sources */,
+				D4F79ECB2F737B5500498216 /* OnboardingView.swift in Sources */,
 				D48166272F633E0200294D5B /* CommunityBoardVM.swift in Sources */,
 				D48166282F633E0200294D5B /* MentorshipThreadView.swift in Sources */,
 				D441B9A92B6C14A8005E5D79 /* BodyMass_Data.swift in Sources */,
 				D438BE012C9276A900C375BF /* AuthView.swift in Sources */,
 				D438BE072C9320B300C375BF /* RootView.swift in Sources */,
+				D4F79EBF2F735E2A00498216 /* RecommendationView.swift in Sources */,
 				D4A100022F70000100C0A001 /* ChameliaConfig.swift in Sources */,
 				D400F84E2C2B5A79002E09B7 /* BG_Data.swift in Sources */,
 				D48166132F633DE700294D5B /* ScheduleEditor.swift in Sources */,
