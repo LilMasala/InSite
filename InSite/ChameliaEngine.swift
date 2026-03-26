@@ -51,6 +51,10 @@ struct GraduationStatus: Codable, Equatable {
     let winRate: Double
     let safetyViolations: Int
     let consecutiveDays: Int
+    let beliefMode: String?
+    let jepaActive: Bool?
+    let configuratorMode: String?
+    let lastDecisionReason: String?
 
     enum CodingKeys: String, CodingKey {
         case graduated
@@ -58,6 +62,32 @@ struct GraduationStatus: Codable, Equatable {
         case winRate = "win_rate"
         case safetyViolations = "safety_violations"
         case consecutiveDays = "consecutive_days"
+        case beliefMode = "belief_mode"
+        case jepaActive = "jepa_active"
+        case configuratorMode = "configurator_mode"
+        case lastDecisionReason = "last_decision_reason"
+    }
+
+    init(
+        graduated: Bool,
+        nDays: Int,
+        winRate: Double,
+        safetyViolations: Int,
+        consecutiveDays: Int,
+        beliefMode: String? = nil,
+        jepaActive: Bool? = nil,
+        configuratorMode: String? = nil,
+        lastDecisionReason: String? = nil
+    ) {
+        self.graduated = graduated
+        self.nDays = nDays
+        self.winRate = winRate
+        self.safetyViolations = safetyViolations
+        self.consecutiveDays = consecutiveDays
+        self.beliefMode = beliefMode
+        self.jepaActive = jepaActive
+        self.configuratorMode = configuratorMode
+        self.lastDecisionReason = lastDecisionReason
     }
 }
 
@@ -280,6 +310,48 @@ struct BurnoutAttribution: Codable, Equatable {
     }
 }
 
+struct PredictedOutcomeSummary: Codable, Equatable {
+    let baselineTIR: Double
+    let treatedTIR: Double
+    let deltaTIR: Double
+    let baselinePercentLow: Double
+    let treatedPercentLow: Double
+    let deltaPercentLow: Double
+    let baselinePercentHigh: Double
+    let treatedPercentHigh: Double
+    let deltaPercentHigh: Double
+    let baselineAverageBG: Double
+    let treatedAverageBG: Double
+    let deltaAverageBG: Double
+    let baselineCostMean: Double
+    let treatedCostMean: Double
+    let deltaCostMean: Double
+    let baselineCVaR: Double
+    let treatedCVaR: Double
+    let deltaCVaR: Double
+
+    enum CodingKeys: String, CodingKey {
+        case baselineTIR = "baseline_tir"
+        case treatedTIR = "treated_tir"
+        case deltaTIR = "delta_tir"
+        case baselinePercentLow = "baseline_pct_low"
+        case treatedPercentLow = "treated_pct_low"
+        case deltaPercentLow = "delta_pct_low"
+        case baselinePercentHigh = "baseline_pct_high"
+        case treatedPercentHigh = "treated_pct_high"
+        case deltaPercentHigh = "delta_pct_high"
+        case baselineAverageBG = "baseline_bg_avg"
+        case treatedAverageBG = "treated_bg_avg"
+        case deltaAverageBG = "delta_bg_avg"
+        case baselineCostMean = "baseline_cost_mean"
+        case treatedCostMean = "treated_cost_mean"
+        case deltaCostMean = "delta_cost_mean"
+        case baselineCVaR = "baseline_cvar"
+        case treatedCVaR = "treated_cvar"
+        case deltaCVaR = "delta_cvar"
+    }
+}
+
 struct RecommendationPackage: Codable, Equatable {
     let action: TherapyAction
     let predictedImprovement: Double
@@ -287,6 +359,7 @@ struct RecommendationPackage: Codable, Equatable {
     let effectSize: Double
     let cvarValue: Double
     let burnoutAttribution: BurnoutAttribution?
+    let predictedOutcomes: PredictedOutcomeSummary?
     let actionLevel: Int
     let actionFamily: ChameliaActionFamily?
     let segmentSummaries: [RecommendationSegmentSummary]
@@ -299,6 +372,7 @@ struct RecommendationPackage: Codable, Equatable {
         case effectSize = "effect_size"
         case cvarValue = "cvar_value"
         case burnoutAttribution = "burnout_attribution"
+        case predictedOutcomes = "predicted_outcomes"
         case actionLevel = "action_level"
         case actionFamily = "action_family"
         case segmentSummaries = "segment_summaries"
@@ -312,6 +386,7 @@ struct RecommendationPackage: Codable, Equatable {
         effectSize: Double,
         cvarValue: Double,
         burnoutAttribution: BurnoutAttribution?,
+        predictedOutcomes: PredictedOutcomeSummary? = nil,
         actionLevel: Int = 1,
         actionFamily: ChameliaActionFamily? = nil,
         segmentSummaries: [RecommendationSegmentSummary] = [],
@@ -323,6 +398,7 @@ struct RecommendationPackage: Codable, Equatable {
         self.effectSize = effectSize
         self.cvarValue = cvarValue
         self.burnoutAttribution = burnoutAttribution
+        self.predictedOutcomes = predictedOutcomes
         self.actionLevel = actionLevel
         self.actionFamily = actionFamily
         self.segmentSummaries = segmentSummaries
@@ -337,6 +413,7 @@ struct RecommendationPackage: Codable, Equatable {
         effectSize = try container.decode(Double.self, forKey: .effectSize)
         cvarValue = try container.decode(Double.self, forKey: .cvarValue)
         burnoutAttribution = try container.decodeIfPresent(BurnoutAttribution.self, forKey: .burnoutAttribution)
+        predictedOutcomes = try container.decodeIfPresent(PredictedOutcomeSummary.self, forKey: .predictedOutcomes)
         actionLevel = try container.decodeIfPresent(Int.self, forKey: .actionLevel) ?? action.level ?? 1
         actionFamily = try container.decodeIfPresent(ChameliaActionFamily.self, forKey: .actionFamily) ?? action.family
         segmentSummaries = try container.decodeIfPresent([RecommendationSegmentSummary].self, forKey: .segmentSummaries) ?? []

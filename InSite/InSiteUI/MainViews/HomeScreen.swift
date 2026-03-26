@@ -19,6 +19,13 @@ struct ContentPreview: PreviewProvider {
   }
 }
 
+private extension Double {
+    var homeSignedPercentString: String {
+        let percent = Int((self * 100).rounded())
+        return percent > 0 ? "+\(percent)%" : "\(percent)%"
+    }
+}
+
 extension View {
     func pressable(scale: CGFloat = 0.98) -> some View {
         modifier(Pressable(scale: scale))
@@ -527,6 +534,7 @@ struct HomeScreen: View {
     @State private var activeBanner: HomeBanner?
     @State private var latestTherapySnapshot: TherapySnapshot?
     @ObservedObject private var chameliaDashboard = ChameliaDashboardStore.shared
+    @StateObject private var chameliaInsights = ChameliaInsightsStore()
     @EnvironmentObject private var themeManager: ThemeManager
     private var theme: HomeTheme { themeManager.theme }  // computed proxy
     // Layout
@@ -575,8 +583,10 @@ struct HomeScreen: View {
                     detail = changes.isEmpty ? firstSummary.label : "\(firstSummary.label) · \(changes)"
                 } else if let firstStructure = recommendation.structureSummaries.first {
                     detail = firstStructure
+                } else if let predicted = recommendation.predictedOutcomes {
+                    detail = "Predicted TIR \(predicted.deltaTIR.homeSignedPercentString) · % low \(predicted.deltaPercentLow.homeSignedPercentString)"
                 } else {
-                    detail = "Predicted +\(Int((recommendation.predictedImprovement * 100).rounded()))% TIR"
+                    detail = "Predicted cost improvement \(recommendation.predictedImprovement.formatted(.number.precision(.fractionLength(2))))"
                 }
             } else if let status = chameliaDashboard.state.status {
                 detail = status.graduated ? "Recommendation system is ready" : "Still learning your patterns"
@@ -669,6 +679,9 @@ struct HomeScreen: View {
                                         onSkip: skipCurrentRecommendation
                                     )
                                     .environmentObject(themeManager)
+                                } else if shadowProgressStatus.graduated {
+                                    ChameliaInsightsView(store: chameliaInsights)
+                                        .environmentObject(themeManager)
                                 } else {
                                     ZStack {
                                         BreathingBackground(theme: theme)
@@ -702,6 +715,7 @@ struct HomeScreen: View {
                                     syncTick &+= 1
                                     Task {
                                         await refreshChameliaDashboard()
+                                        await refreshChameliaInsights()
                                         await refreshLatestTherapySnapshot()
                                     }
                                 }
@@ -715,6 +729,23 @@ struct HomeScreen: View {
                             .applySuccessHaptic(trigger: syncTick)
                         }
                         .padding(.horizontal, 16)
+
+                        if chameliaInsights.snapshot != nil || chameliaInsights.isLoading || chameliaDashboard.state.status?.graduated == true {
+                            NavigationLink {
+                                ChameliaInsightsView(store: chameliaInsights)
+                                    .environmentObject(themeManager)
+                            } label: {
+                                ChameliaInsightsEntryCard(
+                                    snapshot: chameliaInsights.snapshot,
+                                    fallbackStatus: chameliaDashboard.state.status,
+                                    accent: theme.accent,
+                                    isLoading: chameliaInsights.isLoading,
+                                    errorMessage: chameliaInsights.errorMessage
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 16)
+                        }
 
                         ActivityTimeline(items: recentActivityItems, accent: theme.accent)
                             .padding(.horizontal, 16)
@@ -759,6 +790,7 @@ struct HomeScreen: View {
                             therapyVM.reload()   // ensure it loads on first appear
                             await refreshChameliaDashboard()
                             await refreshLatestTherapySnapshot()
+                            await refreshChameliaInsights()
                             refreshLastSyncText()
                         }
             .task {
@@ -1221,6 +1253,13 @@ private extension HomeScreen {
 
     func refreshChameliaDashboard() async {
         await chameliaDashboard.bootstrapCurrentUser()
+    }
+
+    func refreshChameliaInsights() async {
+        await chameliaInsights.refresh(
+            userId: Auth.auth().currentUser?.uid,
+            fallbackStatus: chameliaDashboard.state.status
+        )
     }
 
     func refreshLatestTherapySnapshot() async {

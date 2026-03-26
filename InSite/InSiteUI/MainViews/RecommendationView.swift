@@ -46,7 +46,7 @@ struct RecommendationView: View {
 
             ScrollView {
                 VStack(spacing: 18) {
-                    predictedImprovementCard
+                    predictedTradeoffCard
                     confidenceCard
                     changesCard
                     structurePreviewCard
@@ -74,22 +74,39 @@ struct RecommendationView: View {
         }
     }
 
-    private var predictedImprovementCard: some View {
+    private var predictedTradeoffCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Predicted improvement", systemImage: "waveform.path.ecg")
+            Label("Predicted tradeoff", systemImage: "waveform.path.ecg")
                 .font(.headline)
                 .foregroundStyle(accent)
 
-            Text(predictedImprovementPercent >= 0 ? "Expected +\(predictedImprovementPercent)% TIR" : "Expected \(predictedImprovementPercent)% TIR")
-                .font(.system(.largeTitle, design: .rounded).weight(.bold))
+            if let predicted = recommendation.predictedOutcomes {
+                Text(predicted.deltaTIR >= 0 ? "Expected +\(Int((predicted.deltaTIR * 100).rounded()))% TIR" : "Expected \(Int((predicted.deltaTIR * 100).rounded()))% TIR")
+                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
 
-            Text("Chamelia estimates this change improves time in range while keeping safety gates intact.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                Text("These are rollout-based estimates, not guarantees. Lower % low and % high are better; lower average BG is only good if lows do not rise.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 8) {
+                    detailPill(title: "% Low", value: signedPercentString(predicted.deltaPercentLow), tint: predicted.deltaPercentLow <= 0 ? .green : .orange)
+                    detailPill(title: "% High", value: signedPercentString(predicted.deltaPercentHigh), tint: predicted.deltaPercentHigh <= 0 ? .green : .orange)
+                    detailPill(title: "Avg BG", value: signedNumber(predicted.deltaAverageBG), tint: predicted.deltaAverageBG <= 0 ? .green : .orange)
+                }
+            } else {
+                Text("Expected better cost profile")
+                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
+
+                Text("This recommendation currently includes a predicted CVaR/cost improvement, but not an explicit TIR / % low / % high forecast.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                detailPill(title: "Predicted cost", value: signedPercentish(predictedImprovementPercent), tint: predictedImprovementPercent >= 0 ? .green : .orange)
+            }
         }
         .cardStyle()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Predicted improvement. Expected \(predictedImprovementPercent) percent time in range change.")
+        .accessibilityLabel("Predicted tradeoff details for this recommendation.")
     }
 
     private var confidenceCard: some View {
@@ -126,6 +143,21 @@ struct RecommendationView: View {
         .cardStyle()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Confidence \(confidencePercent) percent. Effect size \(effectSizePercent) percent.")
+    }
+
+    private func signedNumber(_ value: Double) -> String {
+        let rounded = Int(value.rounded())
+        if rounded > 0 { return "+\(rounded)" }
+        return "\(rounded)"
+    }
+
+    private func signedPercentString(_ value: Double) -> String {
+        let percent = Int((value * 100).rounded())
+        return percent > 0 ? "+\(percent)%" : "\(percent)%"
+    }
+
+    private func signedPercentish(_ value: Int) -> String {
+        value > 0 ? "+\(value)" : "\(value)"
     }
 
     private var changesCard: some View {
@@ -216,7 +248,11 @@ struct RecommendationView: View {
     @ViewBuilder
     private var shadowContextCard: some View {
         if let status {
-            ShadowProgressView(status: status)
+            if status.graduated {
+                ChameliaStatusSummaryCard(status: status, accent: accent)
+            } else {
+                ShadowProgressView(status: status)
+            }
         }
     }
 
@@ -319,13 +355,14 @@ struct RecommendationView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func detailPill(title: String, value: String) -> some View {
+    private func detailPill(title: String, value: String, tint: Color = .primary) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(.subheadline.weight(.semibold))
+                .foregroundStyle(tint)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
