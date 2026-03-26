@@ -6,15 +6,18 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
     @Binding var showSignInView: Bool
+    @State private var chameliaLevel2Enabled = false
+
     var body: some View {
         List {
             Section("Chamelia") {
                 Button {
-                    ChameliaQuestionnaireStore.resetCompletion()
+                    ChameliaQuestionnaireStore.resetCompletion(userId: Auth.auth().currentUser?.uid)
                     NotificationCenter.default.post(name: .requestChameliaQuestionnaireOnboarding, object: nil)
                 } label: {
                     HStack {
@@ -25,6 +28,8 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                Toggle("Allow Chamelia to suggest new time blocks", isOn: $chameliaLevel2Enabled)
             }
 
             Button("Log Out") {
@@ -75,13 +80,18 @@ struct SettingsView: View {
         }
         .onAppear {
             viewModel.loadAuthProviders()
+            chameliaLevel2Enabled = ChameliaSettingsStore.level2Enabled()
         }
         .navigationTitle("Settings")
+        .onChange(of: chameliaLevel2Enabled) { newValue in
+            ChameliaSettingsStore.setLevel2Enabled(newValue)
+        }
     }
 
     private var preferencePreview: String {
-        let answers = ChameliaQuestionnaireStore.loadAnswers()
-        let draft = ChameliaQuestionnaireStore.loadPreferenceDraft()
+        let userId = Auth.auth().currentUser?.uid
+        let answers = ChameliaQuestionnaireStore.loadAnswers(userId: userId)
+        let draft = ChameliaQuestionnaireStore.loadPreferenceDraft(userId: userId)
 
         let parts = [
             answers.aggressiveness?.rawValue.replacingOccurrences(of: "_", with: " "),

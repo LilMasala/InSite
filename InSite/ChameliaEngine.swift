@@ -61,9 +61,207 @@ struct GraduationStatus: Codable, Equatable {
     }
 }
 
+enum ChameliaActionFamily: String, Codable, Equatable {
+    case parameterAdjustment = "parameter_adjustment"
+    case structureEdit = "structure_edit"
+    case continuousSchedule = "continuous_schedule"
+}
+
+struct ConnectedAppCapabilities: Codable, Equatable {
+    let appId: String
+    let supportsScalarSchedule: Bool
+    let supportsPiecewiseSchedule: Bool
+    let supportsContinuousSchedule: Bool
+    let maxSegments: Int
+    let minSegmentDurationMin: Int
+    let maxSegmentsAddable: Int
+    let level1Enabled: Bool
+    let level2Enabled: Bool
+    let level3Enabled: Bool
+    let structuralChangeRequiresConsent: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case appId = "app_id"
+        case supportsScalarSchedule = "supports_scalar_schedule"
+        case supportsPiecewiseSchedule = "supports_piecewise_schedule"
+        case supportsContinuousSchedule = "supports_continuous_schedule"
+        case maxSegments = "max_segments"
+        case minSegmentDurationMin = "min_segment_duration_min"
+        case maxSegmentsAddable = "max_segments_addable"
+        case level1Enabled = "level_1_enabled"
+        case level2Enabled = "level_2_enabled"
+        case level3Enabled = "level_3_enabled"
+        case structuralChangeRequiresConsent = "structural_change_requires_consent"
+    }
+
+    static func insiteDefaults(level2Enabled: Bool) -> ConnectedAppCapabilities {
+        ConnectedAppCapabilities(
+            appId: "insite",
+            supportsScalarSchedule: true,
+            supportsPiecewiseSchedule: true,
+            supportsContinuousSchedule: false,
+            maxSegments: 8,
+            minSegmentDurationMin: 120,
+            maxSegmentsAddable: 2,
+            level1Enabled: true,
+            level2Enabled: level2Enabled,
+            level3Enabled: false,
+            structuralChangeRequiresConsent: true
+        )
+    }
+}
+
+struct TherapySegmentConfig: Codable, Equatable, Identifiable {
+    let segmentId: String
+    let startMin: Int
+    let endMin: Int
+    let isf: Double
+    let cr: Double
+    let basal: Double
+
+    var id: String { segmentId }
+
+    enum CodingKeys: String, CodingKey {
+        case segmentId = "segment_id"
+        case startMin = "start_min"
+        case endMin = "end_min"
+        case isf
+        case cr
+        case basal
+    }
+}
+
+struct ConnectedAppState: Codable, Equatable {
+    let scheduleVersion: String
+    let currentSegments: [TherapySegmentConfig]
+    let allowStructuralRecommendations: Bool
+    let allowContinuousSchedule: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case scheduleVersion = "schedule_version"
+        case currentSegments = "current_segments"
+        case allowStructuralRecommendations = "allow_structural_recommendations"
+        case allowContinuousSchedule = "allow_continuous_schedule"
+    }
+}
+
+struct SegmentDeltaPayload: Codable, Equatable, Identifiable {
+    let segmentId: String
+    let isfDelta: Double
+    let crDelta: Double
+    let basalDelta: Double
+
+    var id: String { segmentId }
+
+    enum CodingKeys: String, CodingKey {
+        case segmentId = "segment_id"
+        case isfDelta = "isf_delta"
+        case crDelta = "cr_delta"
+        case basalDelta = "basal_delta"
+    }
+}
+
+struct StructureEditPayload: Codable, Equatable, Identifiable {
+    let editType: String
+    let targetSegmentId: String
+    let splitAtMinute: Int?
+    let neighborSegmentId: String?
+
+    var id: String {
+        [
+            editType,
+            targetSegmentId,
+            splitAtMinute.map(String.init),
+            neighborSegmentId
+        ]
+        .compactMap { $0 }
+        .joined(separator: "|")
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case editType = "edit_type"
+        case targetSegmentId = "target_segment_id"
+        case splitAtMinute = "split_at_minute"
+        case neighborSegmentId = "neighbor_segment_id"
+    }
+}
+
+struct ScheduledActionPayload: Codable, Equatable {
+    let kind: String
+    let level: Int?
+    let family: ChameliaActionFamily?
+    let segmentDeltas: [SegmentDeltaPayload]
+    let structuralEdits: [StructureEditPayload]
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case level
+        case family
+        case segmentDeltas = "segment_deltas"
+        case structuralEdits = "structural_edits"
+    }
+}
+
+struct RecommendationSegmentSummary: Codable, Equatable, Identifiable {
+    let segmentId: String
+    let label: String
+    let isf: String
+    let cr: String
+    let basal: String
+
+    var id: String { segmentId }
+
+    enum CodingKeys: String, CodingKey {
+        case segmentId = "segment_id"
+        case label
+        case isf
+        case cr
+        case basal
+    }
+}
+
 struct TherapyAction: Codable, Equatable {
     let kind: String
     let deltas: [String: Double]
+    let level: Int?
+    let family: ChameliaActionFamily?
+    let segmentDeltas: [SegmentDeltaPayload]
+    let structuralEdits: [StructureEditPayload]
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case deltas
+        case level
+        case family
+        case segmentDeltas = "segment_deltas"
+        case structuralEdits = "structural_edits"
+    }
+
+    init(
+        kind: String,
+        deltas: [String: Double],
+        level: Int? = nil,
+        family: ChameliaActionFamily? = nil,
+        segmentDeltas: [SegmentDeltaPayload] = [],
+        structuralEdits: [StructureEditPayload] = []
+    ) {
+        self.kind = kind
+        self.deltas = deltas
+        self.level = level
+        self.family = family
+        self.segmentDeltas = segmentDeltas
+        self.structuralEdits = structuralEdits
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try container.decode(String.self, forKey: .kind)
+        deltas = try container.decodeIfPresent([String: Double].self, forKey: .deltas) ?? [:]
+        level = try container.decodeIfPresent(Int.self, forKey: .level)
+        family = try container.decodeIfPresent(ChameliaActionFamily.self, forKey: .family)
+        segmentDeltas = try container.decodeIfPresent([SegmentDeltaPayload].self, forKey: .segmentDeltas) ?? []
+        structuralEdits = try container.decodeIfPresent([StructureEditPayload].self, forKey: .structuralEdits) ?? []
+    }
 }
 
 struct BurnoutAttribution: Codable, Equatable {
@@ -89,6 +287,10 @@ struct RecommendationPackage: Codable, Equatable {
     let effectSize: Double
     let cvarValue: Double
     let burnoutAttribution: BurnoutAttribution?
+    let actionLevel: Int
+    let actionFamily: ChameliaActionFamily?
+    let segmentSummaries: [RecommendationSegmentSummary]
+    let structureSummaries: [String]
 
     enum CodingKeys: String, CodingKey {
         case action
@@ -97,6 +299,48 @@ struct RecommendationPackage: Codable, Equatable {
         case effectSize = "effect_size"
         case cvarValue = "cvar_value"
         case burnoutAttribution = "burnout_attribution"
+        case actionLevel = "action_level"
+        case actionFamily = "action_family"
+        case segmentSummaries = "segment_summaries"
+        case structureSummaries = "structure_summaries"
+    }
+
+    init(
+        action: TherapyAction,
+        predictedImprovement: Double,
+        confidence: Double,
+        effectSize: Double,
+        cvarValue: Double,
+        burnoutAttribution: BurnoutAttribution?,
+        actionLevel: Int = 1,
+        actionFamily: ChameliaActionFamily? = nil,
+        segmentSummaries: [RecommendationSegmentSummary] = [],
+        structureSummaries: [String] = []
+    ) {
+        self.action = action
+        self.predictedImprovement = predictedImprovement
+        self.confidence = confidence
+        self.effectSize = effectSize
+        self.cvarValue = cvarValue
+        self.burnoutAttribution = burnoutAttribution
+        self.actionLevel = actionLevel
+        self.actionFamily = actionFamily
+        self.segmentSummaries = segmentSummaries
+        self.structureSummaries = structureSummaries
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        action = try container.decode(TherapyAction.self, forKey: .action)
+        predictedImprovement = try container.decode(Double.self, forKey: .predictedImprovement)
+        confidence = try container.decode(Double.self, forKey: .confidence)
+        effectSize = try container.decode(Double.self, forKey: .effectSize)
+        cvarValue = try container.decode(Double.self, forKey: .cvarValue)
+        burnoutAttribution = try container.decodeIfPresent(BurnoutAttribution.self, forKey: .burnoutAttribution)
+        actionLevel = try container.decodeIfPresent(Int.self, forKey: .actionLevel) ?? action.level ?? 1
+        actionFamily = try container.decodeIfPresent(ChameliaActionFamily.self, forKey: .actionFamily) ?? action.family
+        segmentSummaries = try container.decodeIfPresent([RecommendationSegmentSummary].self, forKey: .segmentSummaries) ?? []
+        structureSummaries = try container.decodeIfPresent([String].self, forKey: .structureSummaries) ?? []
     }
 }
 
@@ -168,19 +412,49 @@ actor ChameliaEngine {
     }
 
     func observe(patientId: String, timestamp: Double, signals: [String: Double]) async throws {
-        let request = SignalRequest(patientId: patientId, timestamp: timestamp, signals: signals)
+        let request = SignalRequest(
+            patientId: patientId,
+            timestamp: timestamp,
+            signals: signals,
+            connectedAppCapabilities: nil,
+            connectedAppState: nil
+        )
         log("observe start patient=\(patientId) timestamp=\(timestamp) signals=\(signals.count)")
         let _: ChameliaResponse = try await post(path: "/chamelia_observe", body: request)
         log("observe success patient=\(patientId)")
     }
 
-    func step(patientId: String, timestamp: Double, signals: [String: Double]) async throws -> RecommendationPackage? {
-        let response = try await stepResult(patientId: patientId, timestamp: timestamp, signals: signals)
+    func step(
+        patientId: String,
+        timestamp: Double,
+        signals: [String: Double],
+        connectedAppCapabilities: ConnectedAppCapabilities? = nil,
+        connectedAppState: ConnectedAppState? = nil
+    ) async throws -> RecommendationPackage? {
+        let response = try await stepResult(
+            patientId: patientId,
+            timestamp: timestamp,
+            signals: signals,
+            connectedAppCapabilities: connectedAppCapabilities,
+            connectedAppState: connectedAppState
+        )
         return response.recommendation
     }
 
-    func stepResult(patientId: String, timestamp: Double, signals: [String: Double]) async throws -> ChameliaResponse {
-        let request = SignalRequest(patientId: patientId, timestamp: timestamp, signals: signals)
+    func stepResult(
+        patientId: String,
+        timestamp: Double,
+        signals: [String: Double],
+        connectedAppCapabilities: ConnectedAppCapabilities? = nil,
+        connectedAppState: ConnectedAppState? = nil
+    ) async throws -> ChameliaResponse {
+        let request = SignalRequest(
+            patientId: patientId,
+            timestamp: timestamp,
+            signals: signals,
+            connectedAppCapabilities: connectedAppCapabilities,
+            connectedAppState: connectedAppState
+        )
         log("step start patient=\(patientId) timestamp=\(timestamp) signals=\(signals.count)")
         let response: ChameliaResponse = try await post(path: "/chamelia_step", body: request)
         log("step success patient=\(patientId) recommendation=\(response.recommendation != nil)")
@@ -313,11 +587,15 @@ private struct SignalRequest: Encodable {
     let patientId: String
     let timestamp: Double
     let signals: [String: Double]
+    let connectedAppCapabilities: ConnectedAppCapabilities?
+    let connectedAppState: ConnectedAppState?
 
     enum CodingKeys: String, CodingKey {
         case patientId = "patient_id"
         case timestamp
         case signals
+        case connectedAppCapabilities = "connected_app_capabilities"
+        case connectedAppState = "connected_app_state"
     }
 }
 

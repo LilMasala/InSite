@@ -14,11 +14,125 @@ struct DiabeticProfile: Codable, Identifiable, Equatable {
 
 struct HourRange: Codable, Identifiable, Equatable {
     var id = UUID()
-    var startHour: Int   // 0...23
-    var endHour: Int     // 0...23 (inclusive)
+    var startMinute: Int   // 0...1439 inclusive
+    var endMinute: Int     // 1...1440 exclusive
     var carbRatio: Double
     var basalRate: Double
     var insulinSensitivity: Double
+
+    init(
+        id: UUID = UUID(),
+        startMinute: Int,
+        endMinute: Int,
+        carbRatio: Double,
+        basalRate: Double,
+        insulinSensitivity: Double
+    ) {
+        self.id = id
+        self.startMinute = max(0, min(1439, startMinute))
+        self.endMinute = max(self.startMinute + 15, min(1440, endMinute))
+        self.carbRatio = carbRatio
+        self.basalRate = basalRate
+        self.insulinSensitivity = insulinSensitivity
+    }
+
+    init(
+        id: UUID = UUID(),
+        startHour: Int,
+        endHour: Int,
+        carbRatio: Double,
+        basalRate: Double,
+        insulinSensitivity: Double
+    ) {
+        let startMinute = max(0, min(23, startHour)) * 60
+        let endMinute = min(1440, (max(0, min(23, endHour)) + 1) * 60)
+        self.init(
+            id: id,
+            startMinute: startMinute,
+            endMinute: max(startMinute + 60, endMinute),
+            carbRatio: carbRatio,
+            basalRate: basalRate,
+            insulinSensitivity: insulinSensitivity
+        )
+    }
+
+    var startHour: Int {
+        get { startMinute / 60 }
+        set { startMinute = max(0, min(23, newValue)) * 60 }
+    }
+
+    var endHour: Int {
+        get { max(startHour, ((endMinute - 1) / 60)) }
+        set { endMinute = min(1440, (max(0, min(23, newValue)) + 1) * 60) }
+    }
+
+    var durationMinutes: Int {
+        endMinute - startMinute
+    }
+
+    func contains(minuteOfDay: Int) -> Bool {
+        startMinute <= minuteOfDay && minuteOfDay < endMinute
+    }
+
+    var timeLabel: String {
+        "\(Self.formatMinute(startMinute))-\(Self.formatMinute(endMinute))"
+    }
+
+    static func formatMinute(_ minute: Int) -> String {
+        let clamped = max(0, min(1440, minute))
+        let hour = min(clamped, 1439) / 60
+        let minutePart = clamped % 60
+        var components = DateComponents()
+        components.hour = hour
+        components.minute = minutePart
+        let date = Calendar.current.date(from: components) ?? Date()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        if clamped == 1440 {
+            return "12:00 AM"
+        }
+        return formatter.string(from: date)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case startMinute
+        case endMinute
+        case carbRatio
+        case basalRate
+        case insulinSensitivity
+        case startHour
+        case endHour
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        carbRatio = try container.decode(Double.self, forKey: .carbRatio)
+        basalRate = try container.decode(Double.self, forKey: .basalRate)
+        insulinSensitivity = try container.decode(Double.self, forKey: .insulinSensitivity)
+
+        if let startMinute = try container.decodeIfPresent(Int.self, forKey: .startMinute),
+           let endMinute = try container.decodeIfPresent(Int.self, forKey: .endMinute) {
+            self.startMinute = max(0, min(1439, startMinute))
+            self.endMinute = max(self.startMinute + 15, min(1440, endMinute))
+        } else {
+            let startHour = try container.decodeIfPresent(Int.self, forKey: .startHour) ?? 0
+            let endHour = try container.decodeIfPresent(Int.self, forKey: .endHour) ?? 23
+            self.startMinute = max(0, min(23, startHour)) * 60
+            self.endMinute = max(self.startMinute + 60, min(1440, (max(0, min(23, endHour)) + 1) * 60))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(startMinute, forKey: .startMinute)
+        try container.encode(endMinute, forKey: .endMinute)
+        try container.encode(carbRatio, forKey: .carbRatio)
+        try container.encode(basalRate, forKey: .basalRate)
+        try container.encode(insulinSensitivity, forKey: .insulinSensitivity)
+    }
 }
 
 // MARK: - Storage (unchanged behavior)
@@ -29,15 +143,16 @@ final class ProfileDataStore {
         static let activeProfile = "activeProfileID"
     }
 
-    private func key(for base: String, uid: String? = Auth.auth().currentUser?.uid) -> String {
-        guard let uid = uid, !uid.isEmpty else { return base }
+    private func key(for base: String, uid: String? = Auth.auth().currentUser?.uid) -> String? {
+        guard let uid = uid, !uid.isEmpty else { return nil }
         return "\(base)_\(uid)"
     }
 
-    private var profilesKey: String { key(for: DefaultsKey.profiles) }
-    private var activeProfileKey: String { key(for: DefaultsKey.activeProfile) }
+    private var profilesKey: String? { key(for: DefaultsKey.profiles) }
+    private var activeProfileKey: String? { key(for: DefaultsKey.activeProfile) }
 
     func saveProfiles(_ profiles: [DiabeticProfile]) {
+        guard let profilesKey else { return }
         let encoder = JSONEncoder()
         if let encoded = try? encoder.encode(profiles) {
             UserDefaults.standard.set(encoded, forKey: profilesKey)
@@ -45,7 +160,8 @@ final class ProfileDataStore {
     }
 
     func loadProfiles() -> [DiabeticProfile] {
-        if let saved = UserDefaults.standard.object(forKey: profilesKey) as? Data {
+        if let profilesKey,
+           let saved = UserDefaults.standard.object(forKey: profilesKey) as? Data {
             let decoder = JSONDecoder()
             if let loaded = try? decoder.decode([DiabeticProfile].self, from: saved) {
                 return loaded
@@ -57,21 +173,28 @@ final class ProfileDataStore {
     }
 
     func saveActiveProfileID(_ id: String) {
+        guard let activeProfileKey else { return }
         UserDefaults.standard.set(id, forKey: activeProfileKey)
     }
 
     func loadActiveProfileID() -> String? {
-        UserDefaults.standard.string(forKey: activeProfileKey)
+        guard let activeProfileKey else { return nil }
+        return UserDefaults.standard.string(forKey: activeProfileKey)
     }
 
     func clearActiveProfileID() {
+        guard let activeProfileKey else { return }
         UserDefaults.standard.removeObject(forKey: activeProfileKey)
     }
 
     func clearData(for uid: String?) {
         let d = UserDefaults.standard
-        d.removeObject(forKey: key(for: DefaultsKey.profiles, uid: uid))
-        d.removeObject(forKey: key(for: DefaultsKey.activeProfile, uid: uid))
+        if let profilesKey = key(for: DefaultsKey.profiles, uid: uid) {
+            d.removeObject(forKey: profilesKey)
+        }
+        if let activeProfileKey = key(for: DefaultsKey.activeProfile, uid: uid) {
+            d.removeObject(forKey: activeProfileKey)
+        }
     }
 }
 
@@ -513,7 +636,7 @@ fileprivate extension TherapySettings {
         } else {
             p.hourRanges.append(range)
         }
-        p.hourRanges.sort { $0.startHour < $1.startHour || ($0.startHour == $1.startHour && $0.endHour < $1.endHour) }
+        p.hourRanges.sort { $0.startMinute < $1.startMinute || ($0.startMinute == $1.startMinute && $0.endMinute < $1.endMinute) }
         profiles[idx] = p
         saveTick &+= 1
         haptic(.success)
@@ -524,7 +647,7 @@ fileprivate extension TherapySettings {
         var copy = range
         copy.id = UUID()
         p.hourRanges.append(copy)
-        p.hourRanges.sort { $0.startHour < $1.startHour || ($0.startHour == $1.startHour && $0.endHour < $1.endHour) }
+        p.hourRanges.sort { $0.startMinute < $1.startMinute || ($0.startMinute == $1.startMinute && $0.endMinute < $1.endMinute) }
         profiles[idx] = p
         haptic(.success)
     }
@@ -559,7 +682,7 @@ fileprivate struct RangeCard: View {
         VStack(alignment: .leading, spacing: 12) {
             // Time header
             HStack {
-                Text("\(fmt(range.startHour)) – \(fmt(range.endHour))")
+                Text(range.timeLabel)
                     .font(.headline)
                 Spacer()
             }
@@ -605,15 +728,7 @@ fileprivate struct RangeCard: View {
         )
         .shadow(color: .black.opacity(0.08), radius: 10, y: 6)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(fmt(range.startHour)) to \(fmt(range.endHour)). Basal \(range.basalRate, specifier: "%.2f") U per hour. Carb ratio \(range.carbRatio, specifier: "%.0f") grams per unit. Sensitivity \(range.insulinSensitivity, specifier: "%.0f") milligrams per deciliter per unit.")
-    }
-
-    private func fmt(_ hour: Int) -> String {
-        let h = max(0, min(23, hour))
-        var comp = DateComponents(); comp.hour = h
-        let date = Calendar.current.date(from: comp) ?? Date()
-        let df = DateFormatter(); df.dateFormat = "ha"
-        return df.string(from: date)
+        .accessibilityLabel("\(range.timeLabel). Basal \(range.basalRate, specifier: "%.2f") U per hour. Carb ratio \(range.carbRatio, specifier: "%.0f") grams per unit. Sensitivity \(range.insulinSensitivity, specifier: "%.0f") milligrams per deciliter per unit.")
     }
 }
 
@@ -694,39 +809,44 @@ fileprivate struct RangeEditorSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var startHour = 0
-    @State private var endHour = 0
+    @State private var startMinute = 0
+    @State private var endMinute = 60
     @State private var carbRatio = 10.0
     @State private var basalRate = 0.10
     @State private var insulinSensitivity = 50.0
 
     // MARK: - Validation
+    private let snapStep = 15
+
     private var availableStarts: [Int] {
-        let taken = takenHours(excluding: editing)
-        return (0...23).filter { !taken.contains($0) }
+        let taken = takenMinutes(excluding: editing)
+        return stride(from: 0, to: 1440, by: snapStep).filter { !taken.contains($0) }
     }
     private func availableEnds(from start: Int) -> [Int] {
-        let taken = takenHours(excluding: editing)
-        var arr: [Int] = []
-        var h = start
-        while h <= 23, !taken.contains(h) { arr.append(h); h += 1 }
-        return arr
+        let taken = takenMinutes(excluding: editing)
+        var values: [Int] = []
+        var cursor = start + snapStep
+        while cursor <= 1440 {
+            let occupied = stride(from: start, to: cursor, by: snapStep).contains { taken.contains($0) }
+            if occupied { break }
+            values.append(cursor)
+            cursor += snapStep
+        }
+        return values
     }
-    private func takenHours(excluding edit: HourRange?) -> Set<Int> {
+    private func takenMinutes(excluding edit: HourRange?) -> Set<Int> {
         var set = Set<Int>()
         for r in existing {
             if let edit, r.id == edit.id { continue }
-            let s = max(0, min(23, r.startHour))
-            let e = max(0, min(23, r.endHour))
-            if s <= e { for h in s...e { set.insert(h) } }
+            for minute in stride(from: r.startMinute, to: r.endMinute, by: snapStep) {
+                set.insert(minute)
+            }
         }
         return set
     }
     private var canSave: Bool {
-        (0...23).contains(startHour) &&
-        (startHour...23).contains(endHour) &&
-        availableStarts.contains(startHour) &&
-        availableEnds(from: startHour).contains(endHour)
+        availableStarts.contains(startMinute) &&
+        availableEnds(from: startMinute).contains(endMinute)
     }
 
     var body: some View {
@@ -744,20 +864,20 @@ fileprivate struct RangeEditorSheet: View {
                 Form {
                     Section("Time") {
                         if availableStarts.isEmpty && editing == nil {
-                            Text("All hours are already covered by existing ranges.")
+                            Text("All time slots are already covered by existing ranges.")
                                 .foregroundStyle(.secondary)
                         } else {
-                            Picker("Start", selection: $startHour) {
-                                ForEach(availableStarts, id: \.self) { Text(fmt($0)).tag($0) }
+                            Picker("Start", selection: $startMinute) {
+                                ForEach(availableStarts, id: \.self) { Text(fmtMinute($0)).tag($0) }
                             }
-                            .onChange(of: startHour) { s in
+                            .onChange(of: startMinute) { s in
                                 let ends = availableEnds(from: s)
-                                if let first = ends.first, !ends.contains(endHour) { endHour = first }
+                                if let first = ends.first, !ends.contains(endMinute) { endMinute = first }
                             }
 
-                            let ends = availableEnds(from: startHour)
-                            Picker("End", selection: $endHour) {
-                                ForEach(ends, id: \.self) { Text(fmt($0)).tag($0) }
+                            let ends = availableEnds(from: startMinute)
+                            Picker("End", selection: $endMinute) {
+                                ForEach(ends, id: \.self) { Text(fmtMinute($0)).tag($0) }
                             }
                         }
                     }
@@ -776,9 +896,9 @@ fileprivate struct RangeEditorSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(editing == nil ? "Add" : "Save") {
-                        var r = editing ?? HourRange(startHour: startHour, endHour: endHour, carbRatio: carbRatio, basalRate: basalRate, insulinSensitivity: insulinSensitivity)
-                        r.startHour = startHour
-                        r.endHour = endHour
+                        var r = editing ?? HourRange(startMinute: startMinute, endMinute: endMinute, carbRatio: carbRatio, basalRate: basalRate, insulinSensitivity: insulinSensitivity)
+                        r.startMinute = startMinute
+                        r.endMinute = endMinute
                         r.carbRatio = carbRatio
                         r.basalRate = basalRate
                         r.insulinSensitivity = insulinSensitivity
@@ -798,25 +918,26 @@ fileprivate struct RangeEditorSheet: View {
 
     private func seed() {
         if let r = editing {
-            startHour = r.startHour
-            endHour = r.endHour
+            startMinute = snap(r.startMinute)
+            endMinute = snap(r.endMinute)
             carbRatio = r.carbRatio
             basalRate = r.basalRate
             insulinSensitivity = r.insulinSensitivity
         } else {
             if let first = availableStarts.first {
-                startHour = first
-                endHour = availableEnds(from: first).first ?? first
+                startMinute = first
+                endMinute = availableEnds(from: first).first ?? (first + snapStep)
             }
         }
     }
 
-    private func fmt(_ hour: Int) -> String {
-        let h = max(0, min(23, hour))
-        var comp = DateComponents(); comp.hour = h
-        let date = Calendar.current.date(from: comp) ?? Date()
-        let df = DateFormatter(); df.dateFormat = "ha"
-        return df.string(from: date)
+    private func snap(_ minute: Int) -> Int {
+        let clamped = max(0, min(1440, minute))
+        return (clamped / snapStep) * snapStep
+    }
+
+    private func fmtMinute(_ minute: Int) -> String {
+        HourRange.formatMinute(minute)
     }
 }
 
@@ -909,9 +1030,9 @@ fileprivate struct ValueRow<T: Strideable & BinaryFloatingPoint>: View where T.S
 fileprivate func haptic(_ kind: HapticKind) {
     if #available(iOS 17.0, *) {
         switch kind {
-        case .success: try? UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.9)
+        case .success: UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.9)
         case .selection: UISelectionFeedbackGenerator().selectionChanged()
-        case .warning: try? UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 1.0)
+        case .warning: UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 1.0)
         }
     } else {
         switch kind {

@@ -71,8 +71,8 @@ final class DataManager {
         uploader.refresh(for: uid)
 
         let tz = TimeZone(identifier: "America/Detroit") ?? .current
-        let lastSyncKey = "LastSyncDate"
-        let firstRunKey = "HasDoneInitialSync"
+        let lastSyncKey = "LastSyncDate.\(uid)"
+        let firstRunKey = "HasDoneInitialSync.\(uid)"
 
         let now = Date()
         let hasDoneInitial = UserDefaults.standard.bool(forKey: firstRunKey)
@@ -436,10 +436,14 @@ private extension DataManager {
         if shouldRunDailyChameliaStep(userId: userId, on: syncDate) {
             do {
                 print("[DataManager] Running daily Chamelia step for user=\(userId)")
+                let connectedAppCapabilities = buildConnectedAppCapabilities()
+                let connectedAppState = buildConnectedAppState()
                 let stepResponse = try await chameliaEngine.stepResult(
                     patientId: userId,
                     timestamp: signalBlob.hourStartUtc.timeIntervalSince1970,
-                    signals: numericSignals
+                    signals: numericSignals,
+                    connectedAppCapabilities: connectedAppCapabilities,
+                    connectedAppState: connectedAppState
                 )
                 latestRecommendation = stepResponse.recommendation
                 markDailyChameliaStepRan(userId: userId, on: syncDate)
@@ -506,6 +510,51 @@ private extension DataManager {
 
     func markDailyChameliaSaveRan(userId: String, on date: Date) {
         UserDefaults.standard.set(date, forKey: "LastChameliaSyncSaveDate.\(userId)")
+    }
+
+    func buildConnectedAppCapabilities() -> ConnectedAppCapabilities {
+        let level2Enabled = ChameliaSettingsStore.level2Enabled()
+        return .insiteDefaults(level2Enabled: level2Enabled)
+    }
+
+    func buildConnectedAppState() -> ConnectedAppState {
+        let level2Enabled = ChameliaSettingsStore.level2Enabled()
+        let store = ProfileDataStore()
+        let profiles = store.loadProfiles()
+        let activeProfile = activeProfile(in: profiles, store: store)
+        let segments = activeProfile.map(makeTherapySegments(from:)) ?? []
+
+        return ConnectedAppState(
+            scheduleVersion: activeProfile?.id ?? "unspecified",
+            currentSegments: segments,
+            allowStructuralRecommendations: level2Enabled,
+            allowContinuousSchedule: false
+        )
+    }
+
+    func activeProfile(in profiles: [DiabeticProfile], store: ProfileDataStore) -> DiabeticProfile? {
+        if let activeId = store.loadActiveProfileID(),
+           let profile = profiles.first(where: { $0.id == activeId }) {
+            return profile
+        }
+        return profiles.first
+    }
+
+    func makeTherapySegments(from profile: DiabeticProfile) -> [TherapySegmentConfig] {
+        profile.hourRanges.map { range in
+            return TherapySegmentConfig(
+                segmentId: stableSegmentId(forStartMin: range.startMinute, endMin: range.endMinute),
+                startMin: range.startMinute,
+                endMin: range.endMinute,
+                isf: range.insulinSensitivity,
+                cr: range.carbRatio,
+                basal: range.basalRate
+            )
+        }
+    }
+
+    func stableSegmentId(forStartMin startMin: Int, endMin: Int) -> String {
+        "\(startMin)-\(endMin)"
     }
 }
 
@@ -609,30 +658,22 @@ extension DataManager {
         return cal.date(from: comps)!
     }
 
-    private func localHour(for utcHourStart: Date, tz: TimeZone) -> Int {
+    private func localMinute(for utcHourStart: Date, tz: TimeZone) -> Int {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = tz
-        return cal.component(.hour, from: utcHourStart)
+        let comps = cal.dateComponents([.hour, .minute], from: utcHourStart)
+        return (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
     }
 
-    private func rangeFor(localHour: Int, in ranges: [HourRange]) -> HourRange? {
-        func contains(_ r: HourRange, _ h: Int) -> Bool {
-            if r.startHour <= r.endHour {
-                return (r.startHour...r.endHour).contains(h)
-            } else {
-                return h >= r.startHour || h <= r.endHour
-            }
-        }
+    private func rangeFor(localMinute: Int, in ranges: [HourRange]) -> HourRange? {
         return ranges
-            .filter { contains($0, localHour) }
+            .filter { $0.contains(minuteOfDay: localMinute) }
             .sorted { span($0) < span($1) }
             .first
     }
 
     private func span(_ r: HourRange) -> Int {
-        r.startHour <= r.endHour
-            ? (r.endHour - r.startHour + 1)
-            : (24 - r.startHour + r.endHour + 1)
+        r.durationMinutes
     }
 }
 

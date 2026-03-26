@@ -57,20 +57,16 @@ struct RecommendationTile: View {
                         style: StrokeStyle(lineWidth: 8, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
+                    .scaleEffect(pulse ? 1.01 : 0.99)
 
                 VStack {
-                    BrainReadinessCore(
-                        progress: progress,
-                        readinessPercent: readinessPercent,
-                        accent: accent,
-                        state: tileState,
-                        pulse: pulse,
-                        hum: hum
-                    )
+                    Spacer(minLength: 0)
+                    stateValue
                     stateCaption
+                    Spacer(minLength: 0)
                 }
                 .multilineTextAlignment(.center)
-                .frame(width: diameter * 0.74, height: diameter * 0.62)
+                .frame(width: diameter * 0.7, height: diameter * 0.56)
                 .padding(.horizontal, 8)
             }
         }
@@ -79,28 +75,33 @@ struct RecommendationTile: View {
             withAnimation(.easeInOut(duration: 2.8).repeatForever(autoreverses: true)) {
                 pulse = true
             }
-            withAnimation(.easeInOut(duration: 1.7).repeatForever(autoreverses: true)) {
-                hum = true
-            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
     }
 
+    private var stateValue: some View {
+        Text(tileState.primaryValue(status: status, readinessPercent: readinessPercent))
+            .font(.system(.title2, design: .rounded).weight(.bold))
+            .foregroundStyle(tileState.titleColor(accent: accent))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+    }
+
     private var stateCaption: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             Text(tileState.eyebrow)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Text(tileState.title)
-                .font(.system(.title3, design: .rounded).weight(.bold))
+                .font(.headline.weight(.bold))
                 .foregroundStyle(tileState.titleColor(accent: accent))
             Text(tileState.subtitle(status: status, errorMessage: errorMessage))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .lineLimit(2)
+                .lineLimit(1)
         }
     }
 
@@ -144,8 +145,8 @@ private extension RecommendationTile {
         var title: String {
             switch self {
             case .ready: return "Ready"
-            case .nearlyReady: return "Nearly Ready"
-            case .learning: return "Learning"
+            case .nearlyReady: return "Shadow"
+            case .learning: return "Shadow"
             case .syncing: return "Syncing"
             case .unavailable: return "Paused"
             }
@@ -155,9 +156,24 @@ private extension RecommendationTile {
             switch self {
             case .ready: return .green
             case .nearlyReady: return accent
-            case .learning: return .primary
+            case .learning: return accent
             case .syncing: return accent
             case .unavailable: return .orange
+            }
+        }
+
+        func primaryValue(status: GraduationStatus?, readinessPercent: Int) -> String {
+            switch self {
+            case .ready:
+                return "\(readinessPercent)%"
+            case .nearlyReady:
+                return "\(readinessPercent)%"
+            case .learning:
+                return status.map { "\($0.nDays)d" } ?? "..."
+            case .syncing:
+                return "..."
+            case .unavailable:
+                return "!"
             }
         }
 
@@ -182,75 +198,20 @@ private extension RecommendationTile {
                 return "Recommendation waiting"
             case .nearlyReady:
                 if let status {
-                    return "\(status.consecutiveDays)/7 strong days • almost there"
+                    return "\(status.consecutiveDays)/7 streak"
                 }
                 return "Shadow criteria nearly met"
             case .learning:
                 if let status {
-                    return "\(status.nDays)d tracked • \(Int((status.winRate * 100).rounded()))% win"
+                    return "\(Int((status.winRate * 100).rounded()))% win rate"
                 }
-                return "Sync to start learning your patterns"
+                return "Starting up"
             case .syncing:
-                return "Refreshing state"
+                return "Refreshing"
             case .unavailable:
-                return errorMessage ?? "Temporarily unavailable"
+                return "Unavailable"
             }
         }
-    }
-}
-
-private struct BrainReadinessCore: View {
-    let progress: Double
-    let readinessPercent: Int
-    let accent: Color
-    let state: RecommendationTile.TileState
-    let pulse: Bool
-    let hum: Bool
-
-    var body: some View {
-        ZStack {
-            Image(systemName: "brain.head.profile")
-                .font(.system(size: 34, weight: .medium))
-                .foregroundStyle(Color.primary.opacity(0.12))
-
-            GeometryReader { proxy in
-                let fillHeight = max(8, proxy.size.height * progress)
-                let glow = state == .ready ? Color.green : accent
-
-                ZStack(alignment: .bottom) {
-                    LinearGradient(
-                        colors: [
-                            glow.opacity(state == .unavailable ? 0.35 : 0.92),
-                            glow.opacity(state == .unavailable ? 0.18 : 0.45)
-                        ],
-                        startPoint: .bottom,
-                        endPoint: .top
-                    )
-                    .frame(height: fillHeight)
-                    .overlay(
-                        Capsule()
-                            .fill(.white.opacity(0.18))
-                            .frame(height: 5)
-                            .offset(y: hum ? -2 : 2),
-                        alignment: .top
-                    )
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .mask(
-                    Image(systemName: "brain.head.profile")
-                        .font(.system(size: 34, weight: .medium))
-                )
-                .shadow(color: glow.opacity(0.28), radius: pulse ? 12 : 6, x: 0, y: 0)
-            }
-            .frame(width: 48, height: 48)
-            .scaleEffect(pulse ? 1.02 : 0.98)
-
-            Text("\(readinessPercent)%")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary.opacity(0.92))
-                .offset(y: 36)
-        }
-        .frame(height: 60)
     }
 }
 

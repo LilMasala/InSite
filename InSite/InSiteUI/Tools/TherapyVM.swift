@@ -37,7 +37,12 @@ final class TherapyVM: ObservableObject {
             forName: UIApplication.willEnterForegroundNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in self?.recompute() }
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.recompute()
+            }
+        }
     }
 
     deinit {
@@ -52,7 +57,7 @@ final class TherapyVM: ObservableObject {
             return
         }
         // Sort by start hour so the sparkline flows left→right in time
-        let ranges = p.hourRanges.sorted { $0.startHour < $1.startHour }
+        let ranges = p.hourRanges.sorted { $0.startMinute < $1.startMinute }
 
         // Use the range values directly (the tile normalizes them)
         sparklineBasal = ranges.map { $0.basalRate }
@@ -93,14 +98,15 @@ final class TherapyVM: ObservableObject {
 
         currentProfileName = p.name
 
-        let hour = Calendar.current.component(.hour, from: date)
-        currentHourRange = Self.range(for: hour, in: p.hourRanges)
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        let minuteOfDay = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+        currentHourRange = Self.range(for: minuteOfDay, in: p.hourRanges)
 
         if let r = currentHourRange {
             currentBasal      = r.basalRate
             currentISF        = r.insulinSensitivity
             currentCarbRatio  = r.carbRatio
-            summaryText = "\(p.name) · \(Self.h12(r.startHour))–\(Self.h12(r.endHour))"
+            summaryText = "\(p.name) · \(r.timeLabel)"
         } else {
             currentBasal = 0; currentISF = 0; currentCarbRatio = 0
             summaryText = "\(p.name) · No active range"
@@ -108,31 +114,14 @@ final class TherapyVM: ObservableObject {
     }
 
     // MARK: - Helpers (same logic you used elsewhere)
-    static func range(for hour: Int, in ranges: [HourRange]) -> HourRange? {
-        func contains(_ r: HourRange, _ h: Int) -> Bool {
-            if r.startHour <= r.endHour {
-                return (r.startHour...r.endHour).contains(h)
-            } else {
-                return h >= r.startHour || h <= r.endHour
-            }
-        }
+    static func range(for minuteOfDay: Int, in ranges: [HourRange]) -> HourRange? {
         return ranges
-            .filter { contains($0, hour) }
+            .filter { $0.contains(minuteOfDay: minuteOfDay) }
             .sorted { span($0) < span($1) }
             .first
     }
 
     private static func span(_ r: HourRange) -> Int {
-        r.startHour <= r.endHour
-            ? (r.endHour - r.startHour + 1)
-            : (24 - r.startHour + r.endHour + 1)
-    }
-
-    private static func h12(_ hour: Int) -> String {
-        let h = max(0, min(23, hour))
-        var dc = DateComponents(); dc.hour = h
-        let date = Calendar.current.date(from: dc) ?? Date()
-        let df = DateFormatter(); df.dateFormat = "ha"
-        return df.string(from: date)
+        r.durationMinutes
     }
 }

@@ -116,7 +116,7 @@ struct RootView: View {
             showChameliaOnboarding = false
             return
         }
-        showChameliaOnboarding = !ChameliaQuestionnaireStore.isCompleted()
+        showChameliaOnboarding = !ChameliaQuestionnaireStore.isCompleted(userId: authUser.uid)
     }
 
     private func legacyPreferences(for userId: String) -> ChameliaPreferences? {

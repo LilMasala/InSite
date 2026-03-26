@@ -91,6 +91,10 @@ class SiteChangeData: ObservableObject {
         set { setStoredDate(newValue, for: DefaultsKey.lastChangeDate) }
     }
 
+    var latestSiteChangeDate: Date? {
+        lastChangeDate
+    }
+
     func refreshState(for uid: String? = Auth.auth().currentUser?.uid) {
         guard let uid = uid, !uid.isEmpty else {
             // fall back to local cached values if not signed in

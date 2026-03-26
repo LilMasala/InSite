@@ -9,6 +9,7 @@ struct RecommendationView: View {
     let onSkip: () -> Void
 
     @EnvironmentObject private var themeManager: ThemeManager
+    @State private var showLevel2Confirmation = false
 
     private var accent: Color { themeManager.theme.accent }
     private var predictedImprovementPercent: Int {
@@ -19,6 +20,23 @@ struct RecommendationView: View {
     }
     private var effectSizePercent: Int {
         Int((recommendation.effectSize * 100).rounded())
+    }
+    private var usesSegmentSummaries: Bool {
+        !changedSegmentSummaries.isEmpty
+    }
+    private var usesStructureSummaries: Bool {
+        !recommendation.structureSummaries.isEmpty
+    }
+    private var requiresExtraConfirmation: Bool {
+        recommendation.actionLevel == 2
+    }
+    private var canApplyInApp: Bool {
+        recommendation.actionLevel < 3
+    }
+    private var changedSegmentSummaries: [RecommendationSegmentSummary] {
+        recommendation.segmentSummaries.filter { summary in
+            [summary.isf, summary.cr, summary.basal].contains { !$0.isVisuallyUnchanged }
+        }
     }
 
     var body: some View {
@@ -31,6 +49,7 @@ struct RecommendationView: View {
                     predictedImprovementCard
                     confidenceCard
                     changesCard
+                    structurePreviewCard
                     burnoutCard
                     shadowContextCard
                     actionButtons
@@ -40,6 +59,19 @@ struct RecommendationView: View {
         }
         .navigationTitle("Recommendation")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog(
+            "Apply new time-block recommendation?",
+            isPresented: $showLevel2Confirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Apply Suggested Time-Block Changes") {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                onApply()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This recommendation changes the structure of your therapy schedule. Review the preview carefully before applying.")
+        }
     }
 
     private var predictedImprovementCard: some View {
@@ -101,13 +133,55 @@ struct RecommendationView: View {
             Text("What changes")
                 .font(.headline)
 
-            changeRow(title: "Insulin sensitivity", delta: recommendation.action.deltas["isf_delta"])
-            changeRow(title: "Carb ratio", delta: recommendation.action.deltas["cr_delta"])
-            changeRow(title: "Basal", delta: recommendation.action.deltas["basal_delta"])
+            if usesSegmentSummaries {
+                ForEach(changedSegmentSummaries) { summary in
+                    segmentSummaryRow(summary)
+                }
+            } else {
+                changeRow(title: "Insulin sensitivity", delta: recommendation.action.deltas["isf_delta"])
+                changeRow(title: "Carb ratio", delta: recommendation.action.deltas["cr_delta"])
+                changeRow(title: "Basal", delta: recommendation.action.deltas["basal_delta"])
+            }
         }
         .cardStyle()
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("What changes. Insulin sensitivity, carb ratio, and basal deltas.")
+        .accessibilityLabel(usesSegmentSummaries ? "What changes. Segment specific adjustments." : "What changes. Insulin sensitivity, carb ratio, and basal deltas.")
+    }
+
+    @ViewBuilder
+    private var structurePreviewCard: some View {
+        if usesStructureSummaries {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("Structure preview", systemImage: "square.split.2x1")
+                        .font(.headline)
+                        .foregroundStyle(.orange)
+                    Spacer()
+                    Text("Level \(recommendation.actionLevel)")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.orange.opacity(0.14), in: Capsule())
+                        .foregroundStyle(.orange)
+                }
+
+                ForEach(Array(recommendation.structureSummaries.enumerated()), id: \.offset) { _, summary in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .padding(.top, 2)
+                        Text(summary)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Text("Time-block edits always require an extra confirmation before apply.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .cardStyle()
+        }
     }
 
     private var burnoutCard: some View {
@@ -149,14 +223,21 @@ struct RecommendationView: View {
     private var actionButtons: some View {
         VStack(spacing: 12) {
             Button {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                onApply()
+                guard canApplyInApp else { return }
+                if requiresExtraConfirmation {
+                    showLevel2Confirmation = true
+                } else {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    onApply()
+                }
             } label: {
-                Label("Apply", systemImage: "checkmark.circle.fill")
+                Label(applyLabel, systemImage: applyIcon)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(RecommendationActionButtonStyle(fill: accent, foreground: .white))
-            .accessibilityLabel("Apply recommendation")
+            .disabled(!canApplyInApp)
+            .opacity(canApplyInApp ? 1 : 0.6)
+            .accessibilityLabel(canApplyInApp ? "Apply recommendation" : "Preview only, cannot apply in app")
 
             Button {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -167,6 +248,28 @@ struct RecommendationView: View {
             }
             .buttonStyle(RecommendationActionButtonStyle(fill: Color.primary.opacity(0.08), foreground: .primary))
             .accessibilityLabel("Skip recommendation")
+        }
+    }
+
+    private var applyLabel: String {
+        switch recommendation.actionLevel {
+        case 2:
+            return "Review Before Apply"
+        case 3...:
+            return "Preview Only"
+        default:
+            return "Apply"
+        }
+    }
+
+    private var applyIcon: String {
+        switch recommendation.actionLevel {
+        case 2:
+            return "checkmark.shield.fill"
+        case 3...:
+            return "eye.fill"
+        default:
+            return "checkmark.circle.fill"
         }
     }
 
@@ -181,6 +284,39 @@ struct RecommendationView: View {
                 .foregroundStyle(deltaColor(delta))
         }
         .accessibilityLabel("\(title), \(formattedDelta(delta))")
+    }
+
+    private func segmentSummaryRow(_ summary: RecommendationSegmentSummary) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(summary.label)
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(summary.segmentId)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 10) {
+                segmentFieldPill(title: "ISF", value: summary.isf)
+                segmentFieldPill(title: "CR", value: summary.cr)
+                segmentFieldPill(title: "Basal", value: summary.basal)
+            }
+        }
+        .padding(14)
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func segmentFieldPill(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(value.isVisuallyUnchanged ? .secondary : .primary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func detailPill(title: String, value: String) -> some View {
@@ -233,6 +369,12 @@ struct RecommendationView: View {
         case "High": return .red
         default: return .secondary
         }
+    }
+}
+
+private extension String {
+    var isVisuallyUnchanged: Bool {
+        trimmingCharacters(in: .whitespacesAndNewlines).lowercased().contains("unchanged")
     }
 }
 

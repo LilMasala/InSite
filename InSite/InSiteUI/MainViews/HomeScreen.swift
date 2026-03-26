@@ -302,17 +302,10 @@ struct TherapyCarouselTile: View {
         let m = currentMetric
         let valueText = value(for: m) + " " + unit(for: m)
         if let r = activeRange {
-            return "Therapy. \(title(for: m)), \(valueText). Active \(fmt(r.startHour))–\(fmt(r.endHour))."
+            return "Therapy. \(title(for: m)), \(valueText). Active \(r.timeLabel)."
         } else {
             return "Therapy. \(title(for: m)), \(valueText)."
         }
-    }
-    private func fmt(_ h: Int) -> String {
-        let hour = ((h % 24) + 24) % 24
-        let f = DateFormatter(); f.dateFormat = "h a"
-        var comp = DateComponents(); comp.hour = hour
-        let cal = Calendar(identifier: .gregorian)
-        return f.string(from: cal.date(from: comp) ?? Date())
     }
 }
 
@@ -532,12 +525,87 @@ struct HomeScreen: View {
     @State private var isSyncing = false
     @State private var syncTick = 0
     @State private var activeBanner: HomeBanner?
+    @State private var latestTherapySnapshot: TherapySnapshot?
     @ObservedObject private var chameliaDashboard = ChameliaDashboardStore.shared
     @EnvironmentObject private var themeManager: ThemeManager
     private var theme: HomeTheme { themeManager.theme }  // computed proxy
     // Layout
     @ScaledMetric private var gridMin: CGFloat = 220
     private var columns: [GridItem] { [GridItem(.adaptive(minimum: gridMin), spacing: 16)] }
+
+    private var recentActivityItems: [ActivityItem] {
+        var items: [ActivityItem] = []
+
+        if let siteDate = site.latestSiteChangeDate,
+           site.siteChangeLocation != "Not selected" {
+            items.append(.init(
+                kind: .site,
+                title: "Site changed",
+                detail: site.siteChangeLocation,
+                time: siteDate
+            ))
+        }
+
+        if let userId = Auth.auth().currentUser?.uid,
+           let lastSyncDate = UserDefaults.standard.object(forKey: "LastSyncDate.\(userId)") as? Date {
+            items.append(.init(
+                kind: .sync,
+                title: "Health sync completed",
+                detail: "Health data up to date",
+                time: lastSyncDate
+            ))
+        }
+
+        if let latestTherapySnapshot {
+            items.append(.init(
+                kind: .therapy,
+                title: "Therapy profile updated",
+                detail: latestTherapySnapshot.profileName,
+                time: latestTherapySnapshot.timestamp
+            ))
+        }
+
+        if let dashboardDate = chameliaDashboard.state.lastUpdatedAt {
+            let detail: String?
+            if let recommendation = chameliaDashboard.state.recommendation {
+                if let firstSummary = recommendation.segmentSummaries.first {
+                    let changes = [firstSummary.isf, firstSummary.cr, firstSummary.basal]
+                        .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                        .joined(separator: " · ")
+                    detail = changes.isEmpty ? firstSummary.label : "\(firstSummary.label) · \(changes)"
+                } else if let firstStructure = recommendation.structureSummaries.first {
+                    detail = firstStructure
+                } else {
+                    detail = "Predicted +\(Int((recommendation.predictedImprovement * 100).rounded()))% TIR"
+                }
+            } else if let status = chameliaDashboard.state.status {
+                detail = status.graduated ? "Recommendation system is ready" : "Still learning your patterns"
+            } else {
+                detail = nil
+            }
+
+            items.append(.init(
+                kind: .note,
+                title: "Chamelia updated",
+                detail: detail,
+                time: dashboardDate
+            ))
+        }
+
+        let sorted = items.sorted { $0.time > $1.time }
+        if sorted.isEmpty {
+            return [
+                .init(
+                    kind: .note,
+                    title: "No recent activity yet",
+                    detail: "Sync HealthKit or update a therapy profile to start a timeline.",
+                    time: Date()
+                )
+            ]
+        }
+
+        return Array(sorted.prefix(4))
+    }
 
     var body: some View {
         NavigationStack {
@@ -630,9 +698,12 @@ struct HomeScreen: View {
                                 isSyncing = true
                                 DataManager.shared.syncHealthData {
                                     isSyncing = false
-                                    lastSyncText = "Synced just now"
+                                    refreshLastSyncText()
                                     syncTick &+= 1
-                                    Task { await refreshChameliaDashboard() }
+                                    Task {
+                                        await refreshChameliaDashboard()
+                                        await refreshLatestTherapySnapshot()
+                                    }
                                 }
                             } label: {
                                 SyncTile(
@@ -645,14 +716,7 @@ struct HomeScreen: View {
                         }
                         .padding(.horizontal, 16)
 
-                        // Recent activity (kept simple for now)
-                        let feed: [ActivityItem] = [
-                            .init(kind: .site, title: "Site changed", detail: site.siteChangeLocation, time: Date().addingTimeInterval(-60*45)),
-                            .init(kind: .sync, title: "Background sync completed", detail: "Health data up to date", time: Date().addingTimeInterval(-60*60*3)),
-                            .init(kind: .therapy, title: "Therapy profile confirmed", detail: therapyVM.summaryText, time: Date().addingTimeInterval(-60*60*5))
-                        ]
-
-                        ActivityTimeline(items: feed, accent: theme.accent)
+                        ActivityTimeline(items: recentActivityItems, accent: theme.accent)
                             .padding(.horizontal, 16)
 
                         // CTA → Mood
@@ -694,9 +758,14 @@ struct HomeScreen: View {
                             DataManager.shared.requestAuthorization { _ in }
                             therapyVM.reload()   // ensure it loads on first appear
                             await refreshChameliaDashboard()
+                            await refreshLatestTherapySnapshot()
+                            refreshLastSyncText()
                         }
             .task {
                 DataManager.shared.requestAuthorization { _ in }
+            }
+            .onAppear {
+                refreshLastSyncText()
             }
             .onChange(of: chameliaDashboard.latestErrorMessage) { message in
                 guard let message, !message.isEmpty else { return }
@@ -929,9 +998,8 @@ private struct LegendDot: View {
 private struct TherapyArc: Shape {
     var range: HourRange
 
-    // Convert hour to angle (0h at top, clockwise)
-    private func angle(for hour: Double) -> Angle {
-        Angle(degrees: (hour / 24.0) * 360.0 - 90.0)
+    private func angle(for minute: Double) -> Angle {
+        Angle(degrees: (minute / 1440.0) * 360.0 - 90.0)
     }
 
     func path(in rect: CGRect) -> Path {
@@ -939,23 +1007,9 @@ private struct TherapyArc: Shape {
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let radius = min(rect.width, rect.height) / 2
 
-        // Build one or two arcs depending on wraparound
-        let segments: [(Double, Double)] = {
-            let s = Double(range.startHour)
-            let e = Double(range.endHour)
-            if range.startHour <= range.endHour {
-                return [(s, e)]
-            } else {
-                // wrap: 22–5 => [22, 24) and [0, 5]
-                return [(s, 24.0), (0.0, e)]
-            }
-        }()
-
-        for seg in segments {
-            let startAngle = angle(for: seg.0)
-            let endAngle   = angle(for: seg.1 + 0.999) // include the end hour visually
-            path.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: false)
-        }
+        let startAngle = angle(for: Double(range.startMinute))
+        let endAngle   = angle(for: Double(range.endMinute))
+        path.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: false)
         return path
     }
 }
@@ -1169,6 +1223,25 @@ private extension HomeScreen {
         await chameliaDashboard.bootstrapCurrentUser()
     }
 
+    func refreshLatestTherapySnapshot() async {
+        latestTherapySnapshot = try? await TherapySettingsLogManager.shared.getActiveTherapyProfile(at: Date())
+    }
+
+    func refreshLastSyncText() {
+        guard let userId = Auth.auth().currentUser?.uid,
+              let lastSyncDate = UserDefaults.standard.object(forKey: "LastSyncDate.\(userId)") as? Date else {
+            lastSyncText = "Sync when you're ready"
+            return
+        }
+        lastSyncText = "Synced \(relativeTimestamp(from: lastSyncDate))"
+    }
+
+    func relativeTimestamp(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
     func presentBanner(_ message: String, tone: HomeBanner.Tone) {
         withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
             activeBanner = HomeBanner(message: message, tone: tone)
@@ -1187,6 +1260,10 @@ private extension HomeScreen {
     func applyCurrentRecommendation() {
         guard let user = Auth.auth().currentUser else { return }
         guard let recommendation = chameliaDashboard.state.recommendation else { return }
+        guard recommendation.actionLevel < 3 else {
+            presentBanner("This recommendation can be previewed but not applied in InSite yet.", tone: .warning)
+            return
+        }
         let recId = chameliaDashboard.state.recId
         let latestSignals = chameliaDashboard.state.latestSignals
 
@@ -1195,10 +1272,17 @@ private extension HomeScreen {
         guard let targetIndex = activeProfileIndex(in: profiles, store: store) else { return }
 
         let existingProfile = profiles[targetIndex]
+        let updatedRanges: [HourRange]
+        do {
+            updatedRanges = try applyRecommendationAction(recommendation.action, to: existingProfile.hourRanges)
+        } catch {
+            presentBanner(readableMessage(for: error), tone: .warning)
+            return
+        }
         let updatedProfile = DiabeticProfile(
             id: existingProfile.id,
             name: existingProfile.name,
-            hourRanges: existingProfile.hourRanges.map { applyDeltas(recommendation.action.deltas, to: $0) }
+            hourRanges: updatedRanges
         )
         profiles[targetIndex] = updatedProfile
 
@@ -1206,6 +1290,12 @@ private extension HomeScreen {
         store.saveActiveProfileID(updatedProfile.id)
         therapyVM.reload()
         lastSyncText = "Recommendation applied"
+        latestTherapySnapshot = TherapySnapshot(
+            timestamp: Date(),
+            profileId: updatedProfile.id,
+            profileName: updatedProfile.name,
+            hourRanges: updatedProfile.hourRanges
+        )
         chameliaDashboard.clearRecommendation(userId: user.uid)
         presentBanner("Recommendation applied to your active therapy profile.", tone: .success)
 
@@ -1287,6 +1377,141 @@ private extension HomeScreen {
         }
         return updated
     }
+
+    func applyRecommendationAction(_ action: TherapyAction, to ranges: [HourRange]) throws -> [HourRange] {
+        if action.segmentDeltas.isEmpty && action.structuralEdits.isEmpty {
+            return ranges.map { applyDeltas(action.deltas, to: $0) }
+        }
+
+        var segments = ranges
+            .sorted { $0.startMinute < $1.startMinute }
+            .map { SegmentWorkItem(segmentId: stableSegmentId(for: $0), range: $0) }
+
+        if !action.structuralEdits.isEmpty {
+            segments = try applyStructureEdits(action.structuralEdits, to: segments)
+        }
+        if !action.segmentDeltas.isEmpty {
+            segments = applySegmentDeltas(action.segmentDeltas, to: segments)
+        }
+
+        return segments
+            .sorted { $0.range.startMinute < $1.range.startMinute }
+            .map(\.range)
+    }
+
+    func applyStructureEdits(_ edits: [StructureEditPayload], to segments: [SegmentWorkItem]) throws -> [SegmentWorkItem] {
+        var current = segments
+
+        for edit in edits {
+            switch edit.editType.lowercased() {
+            case "split":
+                guard let idx = current.firstIndex(where: { $0.segmentId == edit.targetSegmentId }) else { continue }
+                let target = current[idx]
+                let splitMinute = roundedSplitMinute(for: target.range, splitAtMinute: edit.splitAtMinute)
+                guard splitMinute > target.range.startMinute, splitMinute < target.range.endMinute else {
+                    throw ChameliaError.serverError(0, "Chamelia suggested an unsupported split for \(edit.targetSegmentId).")
+                }
+
+                let left = HourRange(
+                    id: target.range.id,
+                    startMinute: target.range.startMinute,
+                    endMinute: splitMinute,
+                    carbRatio: target.range.carbRatio,
+                    basalRate: target.range.basalRate,
+                    insulinSensitivity: target.range.insulinSensitivity
+                )
+                let right = HourRange(
+                    id: UUID(),
+                    startMinute: splitMinute,
+                    endMinute: target.range.endMinute,
+                    carbRatio: target.range.carbRatio,
+                    basalRate: target.range.basalRate,
+                    insulinSensitivity: target.range.insulinSensitivity
+                )
+
+                current.remove(at: idx)
+                current.insert(SegmentWorkItem(segmentId: "\(edit.targetSegmentId)_b", range: right), at: idx)
+                current.insert(SegmentWorkItem(segmentId: "\(edit.targetSegmentId)_a", range: left), at: idx)
+
+            case "merge":
+                guard
+                    let firstIdx = current.firstIndex(where: { $0.segmentId == edit.targetSegmentId }),
+                    let neighborId = edit.neighborSegmentId,
+                    let secondIdx = current.firstIndex(where: { $0.segmentId == neighborId })
+                else { continue }
+
+                let first = current[firstIdx]
+                let second = current[secondIdx]
+                let ordered = [first, second].sorted { $0.range.startMinute < $1.range.startMinute }
+                let a = ordered[0]
+                let b = ordered[1]
+                guard a.range.endMinute == b.range.startMinute else { continue }
+
+                let merged = HourRange(
+                    id: a.range.id,
+                    startMinute: a.range.startMinute,
+                    endMinute: b.range.endMinute,
+                    carbRatio: (a.range.carbRatio + b.range.carbRatio) / 2,
+                    basalRate: (a.range.basalRate + b.range.basalRate) / 2,
+                    insulinSensitivity: (a.range.insulinSensitivity + b.range.insulinSensitivity) / 2
+                )
+
+                current.removeAll { $0.segmentId == a.segmentId || $0.segmentId == b.segmentId }
+                current.append(
+                    SegmentWorkItem(
+                        segmentId: "\(a.segmentId)__\(b.segmentId)",
+                        range: merged
+                    )
+                )
+                current.sort { $0.range.startMinute < $1.range.startMinute }
+
+            case "add", "remove":
+                throw ChameliaError.serverError(0, "This type of structure edit is not supported in InSite yet.")
+            default:
+                continue
+            }
+        }
+
+        return current
+    }
+
+    func applySegmentDeltas(_ deltas: [SegmentDeltaPayload], to segments: [SegmentWorkItem]) -> [SegmentWorkItem] {
+        var current = segments
+
+        for delta in deltas {
+            guard let idx = current.firstIndex(where: { $0.segmentId == delta.segmentId }) else { continue }
+            var range = current[idx].range
+            if delta.basalDelta != 0 {
+                range.basalRate = max(0, range.basalRate * (1 + delta.basalDelta))
+            }
+            if delta.isfDelta != 0 {
+                range.insulinSensitivity = max(0, range.insulinSensitivity * (1 + delta.isfDelta))
+            }
+            if delta.crDelta != 0 {
+                range.carbRatio = max(0, range.carbRatio * (1 + delta.crDelta))
+            }
+            current[idx].range = range
+        }
+
+        return current
+    }
+
+    func roundedSplitMinute(for range: HourRange, splitAtMinute: Int?) -> Int {
+        let snapStep = 15
+        let fallbackMinute = range.startMinute + (range.durationMinutes / 2)
+        let splitMinute = splitAtMinute ?? fallbackMinute
+        let rounded = Int(round(Double(splitMinute) / Double(snapStep))) * snapStep
+        return max(range.startMinute + snapStep, min(range.endMinute - snapStep, rounded))
+    }
+
+    func stableSegmentId(for range: HourRange) -> String {
+        "\(range.startMinute)-\(range.endMinute)"
+    }
+}
+
+private struct SegmentWorkItem {
+    var segmentId: String
+    var range: HourRange
 }
 
 struct Template: View {

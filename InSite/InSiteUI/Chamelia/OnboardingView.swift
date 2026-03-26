@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseAuth
 
 extension Notification.Name {
     static let requestChameliaQuestionnaireOnboarding = Notification.Name("requestChameliaQuestionnaireOnboarding")
@@ -9,42 +10,54 @@ enum ChameliaQuestionnaireStore {
     private static let answersKey = "ChameliaQuestionnaireAnswers"
     private static let draftKey = "ChameliaQuestionnairePreferenceDraft"
 
-    static func isCompleted() -> Bool {
-        UserDefaults.standard.bool(forKey: completionKey)
+    private static func key(_ base: String, userId: String? = Auth.auth().currentUser?.uid) -> String? {
+        guard let userId, !userId.isEmpty else { return nil }
+        return "\(base).\(userId)"
     }
 
-    static func setCompleted(_ value: Bool) {
-        UserDefaults.standard.set(value, forKey: completionKey)
+    static func isCompleted(userId: String? = Auth.auth().currentUser?.uid) -> Bool {
+        guard let key = key(completionKey, userId: userId) else { return false }
+        return UserDefaults.standard.bool(forKey: key)
     }
 
-    static func resetCompletion() {
-        UserDefaults.standard.set(false, forKey: completionKey)
+    static func setCompleted(_ value: Bool, userId: String? = Auth.auth().currentUser?.uid) {
+        guard let key = key(completionKey, userId: userId) else { return }
+        UserDefaults.standard.set(value, forKey: key)
     }
 
-    static func loadAnswers() -> QuestionnaireAnswers {
-        guard let data = UserDefaults.standard.data(forKey: answersKey),
+    static func resetCompletion(userId: String? = Auth.auth().currentUser?.uid) {
+        guard let key = key(completionKey, userId: userId) else { return }
+        UserDefaults.standard.set(false, forKey: key)
+    }
+
+    static func loadAnswers(userId: String? = Auth.auth().currentUser?.uid) -> QuestionnaireAnswers {
+        guard let key = key(answersKey, userId: userId),
+              let data = UserDefaults.standard.data(forKey: key),
               let answers = try? JSONDecoder().decode(QuestionnaireAnswers.self, from: data) else {
             return QuestionnaireAnswers()
         }
         return answers
     }
 
-    static func saveAnswers(_ answers: QuestionnaireAnswers) {
+    static func saveAnswers(_ answers: QuestionnaireAnswers, userId: String? = Auth.auth().currentUser?.uid) {
+        guard let key = key(answersKey, userId: userId) else { return }
         guard let data = try? JSONEncoder().encode(answers) else { return }
-        UserDefaults.standard.set(data, forKey: answersKey)
+        UserDefaults.standard.set(data, forKey: key)
     }
 
-    static func loadPreferenceDraft() -> QuestionnairePreferenceDraft {
-        guard let data = UserDefaults.standard.data(forKey: draftKey),
+    static func loadPreferenceDraft(userId: String? = Auth.auth().currentUser?.uid) -> QuestionnairePreferenceDraft {
+        guard let key = key(draftKey, userId: userId),
+              let data = UserDefaults.standard.data(forKey: key),
               let draft = try? JSONDecoder().decode(QuestionnairePreferenceDraft.self, from: data) else {
             return QuestionnairePreferenceDraft()
         }
         return draft
     }
 
-    static func savePreferenceDraft(_ draft: QuestionnairePreferenceDraft) {
+    static func savePreferenceDraft(_ draft: QuestionnairePreferenceDraft, userId: String? = Auth.auth().currentUser?.uid) {
+        guard let key = key(draftKey, userId: userId) else { return }
         guard let data = try? JSONEncoder().encode(draft) else { return }
-        UserDefaults.standard.set(data, forKey: draftKey)
+        UserDefaults.standard.set(data, forKey: key)
     }
 }
 
@@ -60,6 +73,7 @@ struct QuestionnaireOnboardingView: View {
     @State private var isSubmitting = false
     @State private var errorMessage: String?
     @State private var hasLoadedDraft = false
+    @State private var bedtimeSelection = QuestionnaireOnboardingView.defaultBedtimeDate(for: nil)
 
     private let screenCount = 9
 
@@ -77,8 +91,10 @@ struct QuestionnaireOnboardingView: View {
         }
         .task {
             guard !hasLoadedDraft else { return }
-            answers = ChameliaQuestionnaireStore.loadAnswers()
-            preferenceDraft = ChameliaQuestionnaireStore.loadPreferenceDraft()
+            let userId = Auth.auth().currentUser?.uid
+            answers = ChameliaQuestionnaireStore.loadAnswers(userId: userId)
+            preferenceDraft = ChameliaQuestionnaireStore.loadPreferenceDraft(userId: userId)
+            bedtimeSelection = Self.defaultBedtimeDate(for: answers.bedtimeCategory)
             hasLoadedDraft = true
         }
         .interactiveDismissDisabled(isSubmitting)
@@ -203,9 +219,7 @@ struct QuestionnaireOnboardingView: View {
             title: "Tell us about your sleep",
             subtitle: "These answers help seed Chamelia's early-day recovery and regularity assumptions."
         ) {
-            singleChoice("What time do you usually go to bed?", selection: $answers.bedtimeCategory, options: [
-                (.early, "Before 10pm"), (.normal, "10pm–midnight"), (.late, "Midnight–2am"), (.veryLate, "After 2am")
-            ])
+            bedtimePicker
             singleChoice("How many hours do you usually sleep?", selection: $answers.sleepHours, options: [
                 (.under6, "Less than 6"), (.sixSeven, "6–7 hours"), (.sevenEight, "7–8 hours"), (.over8, "8+ hours")
             ])
@@ -221,7 +235,7 @@ struct QuestionnaireOnboardingView: View {
     private var exerciseScreen: some View {
         questionScreen(
             title: "Tell us about your activity",
-            subtitle: "Movement patterns are a strong early clue for insulin sensitivity and recovery."
+            subtitle: "We'll use the objective parts here and let HealthKit fill in the rest over time."
         ) {
             singleChoice("How often do you exercise?", selection: $answers.exerciseFreq, options: [
                 (.never, "Never"), (.lightWeek, "1–2x per week"), (.modWeek, "3–5x per week"), (.daily, "Daily or more")
@@ -231,12 +245,9 @@ struct QuestionnaireOnboardingView: View {
                 singleChoice("What kind of exercise?", selection: $answers.exerciseType, options: [
                     (.cardio, "Cardio"), (.strength, "Strength training"), (.mixed, "Mixed"), (.light, "Light movement")
                 ])
-                singleChoice("How hard do you push yourself when you exercise?", selection: $answers.exerciseIntensity, options: [
-                    (.casual, "Casual / easy"), (.moderate, "Moderate"), (.hard, "Hard / challenging"), (.intense, "Very intense / max")
-                ])
-                singleChoice("How fit would you say you are overall?", selection: $answers.fitnessLevel, options: [
-                    (.low, "Not very fit"), (.average, "About average"), (.fit, "Pretty fit"), (.veryFit, "Very fit")
-                ])
+                Text("We skip subjective effort and fitness ratings here. HealthKit signals like resting heart rate, body mass, and activity will be more trustworthy.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -386,8 +397,8 @@ struct QuestionnaireOnboardingView: View {
     }
 
     private var sleepSummary: String {
-        if let bedtime = answers.bedtimeCategory {
-            return bedtime.rawValue.replacingOccurrences(of: "_", with: " ")
+        if answers.bedtimeCategory != nil {
+            return Self.bedtimeFormatter.string(from: bedtimeSelection)
         }
         return "Using defaults"
     }
@@ -459,9 +470,9 @@ struct QuestionnaireOnboardingView: View {
                     physicalPriors: physicalPriorsJSON
                 )
                 try await ChameliaEngine.shared.initialize(patientId: authUser.uid, preferences: prefs)
-                ChameliaQuestionnaireStore.saveAnswers(answersSnapshot)
-                ChameliaQuestionnaireStore.savePreferenceDraft(preferencesSnapshot)
-                ChameliaQuestionnaireStore.setCompleted(true)
+                ChameliaQuestionnaireStore.saveAnswers(answersSnapshot, userId: authUser.uid)
+                ChameliaQuestionnaireStore.savePreferenceDraft(preferencesSnapshot, userId: authUser.uid)
+                ChameliaQuestionnaireStore.setCompleted(true, userId: authUser.uid)
                 await MainActor.run {
                     onCompleted?(authUser.uid)
                     isSubmitting = false
@@ -503,6 +514,37 @@ struct QuestionnaireOnboardingView: View {
         }
     }
 
+    private var bedtimePicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("What time do you usually go to bed?")
+                .font(.headline)
+            DatePicker(
+                "Usual bedtime",
+                selection: $bedtimeSelection,
+                displayedComponents: .hourAndMinute
+            )
+            .datePickerStyle(.wheel)
+            .labelsHidden()
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.primary.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+            )
+            .onChange(of: bedtimeSelection) { newValue in
+                answers.bedtimeCategory = Self.bedtimeCategory(for: newValue)
+            }
+
+            Text("We'll use this as a rough starting prior, then hand off to real sleep data once it exists.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private func singleChoice<T: Hashable & Codable>(
         _ title: String,
         selection: Binding<T?>,
@@ -539,6 +581,43 @@ struct QuestionnaireOnboardingView: View {
                 .accessibilityLabel("\(title). \(option.1)\(isSelected ? ", selected" : "")")
             }
         }
+    }
+
+    private static let bedtimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    private static func bedtimeCategory(for date: Date) -> BedtimeCategory {
+        let hour = Calendar.current.component(.hour, from: date)
+        switch hour {
+        case ..<22:
+            return .early
+        case 22..<24:
+            return .normal
+        case 0..<2:
+            return .late
+        default:
+            return .veryLate
+        }
+    }
+
+    private static func defaultBedtimeDate(for category: BedtimeCategory?) -> Date {
+        let hour: Int
+        switch category {
+        case .early:
+            hour = 21
+        case .normal:
+            hour = 23
+        case .late:
+            hour = 1
+        case .veryLate:
+            hour = 3
+        case nil:
+            hour = 23
+        }
+        return Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
     }
 }
 
