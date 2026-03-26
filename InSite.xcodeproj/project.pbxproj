@@ -120,6 +120,7 @@
 		D4F79EC72F737A5200498216 /* QuestionnaireAnswers.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79EC62F737A5200498216 /* QuestionnaireAnswers.swift */; };
 		D4F79EC92F737ACE00498216 /* QuestionnaireToPriors.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79EC82F737ACE00498216 /* QuestionnaireToPriors.swift */; };
 		D4F79ECB2F737B5500498216 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79ECA2F737B5500498216 /* OnboardingView.swift */; };
+		D4F79ECD2F75AF6100498216 /* ChameliaInsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F79ECC2F75AF6100498216 /* ChameliaInsightsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -228,6 +229,7 @@
 		D4F79EC62F737A5200498216 /* QuestionnaireAnswers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionnaireAnswers.swift; sourceTree = "<group>"; };
 		D4F79EC82F737ACE00498216 /* QuestionnaireToPriors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionnaireToPriors.swift; sourceTree = "<group>"; };
 		D4F79ECA2F737B5500498216 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		D4F79ECC2F75AF6100498216 /* ChameliaInsightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChameliaInsightsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -531,6 +533,7 @@
 			isa = PBXGroup;
 			children = (
 				D4F79ECA2F737B5500498216 /* OnboardingView.swift */,
+				D4F79ECC2F75AF6100498216 /* ChameliaInsightsView.swift */,
 			);
 			path = Chamelia;
 			sourceTree = "<group>";
@@ -795,6 +798,7 @@
 				D481662C2F633E7500294D5B /* Detectors.swift in Sources */,
 				D4991E762E4677D800178EC3 /* HealthDataUploader.swift in Sources */,
 				D4991E772E4677D800178EC3 /* HealthDataFetcher.swift in Sources */,
+				D4F79ECD2F75AF6100498216 /* ChameliaInsightsView.swift in Sources */,
 				D4991E782E4677D800178EC3 /* MockHealthDataSeeder.swift in Sources */,
 				D4F79EC72F737A5200498216 /* QuestionnaireAnswers.swift in Sources */,
 				D4B6503E2F732C5300F6D4B7 /* ChameliaStateManager.swift in Sources */,

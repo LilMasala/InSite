@@ -196,6 +196,28 @@ final class ProfileDataStore {
             d.removeObject(forKey: activeProfileKey)
         }
     }
+
+    @discardableResult
+    func hydrate(from snapshot: TherapySnapshot) -> [DiabeticProfile] {
+        var profiles = loadProfiles()
+        let imported = DiabeticProfile(
+            id: snapshot.profileId,
+            name: snapshot.profileName,
+            hourRanges: snapshot.hourRanges.sorted {
+                $0.startMinute < $1.startMinute || ($0.startMinute == $1.startMinute && $0.endMinute < $1.endMinute)
+            }
+        )
+
+        if let index = profiles.firstIndex(where: { $0.id == imported.id }) {
+            profiles[index] = imported
+        } else {
+            profiles.append(imported)
+        }
+
+        saveProfiles(profiles)
+        saveActiveProfileID(imported.id)
+        return profiles
+    }
 }
 
 // MARK: - Main Screen
@@ -222,6 +244,9 @@ struct TherapySettings: View {
     @State private var appeared = false
     
     @State private var slideDir: SlideDir = .right
+    @State private var isHydratingRemoteSnapshot = false
+    @State private var hydrationErrorMessage: String?
+    @State private var suppressLocalFallback = false
 
 
 
@@ -246,19 +271,43 @@ struct TherapySettings: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    headerCard
-                        .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : 8)
-                        .animation(.spring(response: 0.32, dampingFraction: 0.9).delay(0.02), value: appeared)
+                    if isHydratingRemoteSnapshot {
+                        Card {
+                            HStack(spacing: 12) {
+                                ProgressView()
+                                Text("Loading the latest therapy profile…")
+                                    .font(.subheadline)
+                                Spacer()
+                            }
+                        }
+                    } else if let hydrationErrorMessage {
+                        Card {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Therapy profile couldn’t be refreshed")
+                                    .font(.subheadline.weight(.semibold))
+                                Text(hydrationErrorMessage)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
 
-                    profileChips
-                        .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : 8)
-                        .animation(.spring(response: 0.32, dampingFraction: 0.9).delay(0.06), value: appeared)
-                    rangeGrid
-                        .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : 8)
-                        .animation(.spring(response: 0.4, dampingFraction: 0.9).delay(0.06), value: appeared)
+                    if !suppressLocalFallback {
+                        headerCard
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 8)
+                            .animation(.spring(response: 0.32, dampingFraction: 0.9).delay(0.02), value: appeared)
+
+                        profileChips
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 8)
+                            .animation(.spring(response: 0.32, dampingFraction: 0.9).delay(0.06), value: appeared)
+                        rangeGrid
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 8)
+                            .animation(.spring(response: 0.4, dampingFraction: 0.9).delay(0.06), value: appeared)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
@@ -305,6 +354,9 @@ struct TherapySettings: View {
             .onAppear(perform: loadInitial)
             .onAppear {
                 if !appeared { appeared = true }
+            }
+            .task {
+                await hydrateFromLatestRemoteSnapshot()
             }
 
             .onChange(of: profiles) { store.saveProfiles($0) }
@@ -581,6 +633,38 @@ fileprivate extension TherapySettings {
             selectedIndex = min(selectedIndex, max(profiles.count - 1, 0))
             if let first = profiles.first { store.saveActiveProfileID(first.id) }
             else { store.clearActiveProfileID() }
+        }
+    }
+
+    func hydrateFromLatestRemoteSnapshot() async {
+        guard Auth.auth().currentUser?.isAnonymous == false else { return }
+        isHydratingRemoteSnapshot = true
+        hydrationErrorMessage = nil
+        suppressLocalFallback = false
+        defer { isHydratingRemoteSnapshot = false }
+
+        do {
+            if let snapshot = try await TherapySettingsLogManager.shared.getLatestValidTherapySnapshot() {
+                print(
+                    "[TherapySettings] hydrating snapshot profile_id=\(snapshot.profileId) timestamp=\(ISO8601DateFormatter().string(from: snapshot.timestamp)) hour_ranges=\(snapshot.hourRanges.count)"
+                )
+                guard !snapshot.hourRanges.isEmpty else {
+                    let message = "Remote therapy snapshot \(snapshot.profileId) was found but contains no schedule blocks."
+                    hydrationErrorMessage = message
+                    suppressLocalFallback = true
+                    print("[TherapySettings] hydration failure reason=\(message)")
+                    return
+                }
+                profiles = store.hydrate(from: snapshot)
+                if let idx = profiles.firstIndex(where: { $0.id == snapshot.profileId }) {
+                    selectedIndex = idx
+                }
+                print("[TherapySettings] hydration success profile_count=\(profiles.count) selected_index=\(selectedIndex)")
+            }
+        } catch {
+            hydrationErrorMessage = error.localizedDescription
+            suppressLocalFallback = true
+            print("[TherapySettings] hydration failed error=\(error.localizedDescription)")
         }
     }
 

@@ -51,6 +51,13 @@ struct GraduationStatus: Codable, Equatable {
     let winRate: Double
     let safetyViolations: Int
     let consecutiveDays: Int
+    let beliefEntropy: Double?
+    let familiarity: Double?
+    let concordance: Double?
+    let calibration: Double?
+    let trustLevel: Double?
+    let burnoutLevel: Double?
+    let noSurfaceStreak: Int?
     let beliefMode: String?
     let jepaActive: Bool?
     let configuratorMode: String?
@@ -62,6 +69,13 @@ struct GraduationStatus: Codable, Equatable {
         case winRate = "win_rate"
         case safetyViolations = "safety_violations"
         case consecutiveDays = "consecutive_days"
+        case beliefEntropy = "belief_entropy"
+        case familiarity
+        case concordance
+        case calibration
+        case trustLevel = "trust_level"
+        case burnoutLevel = "burnout_level"
+        case noSurfaceStreak = "no_surface_streak"
         case beliefMode = "belief_mode"
         case jepaActive = "jepa_active"
         case configuratorMode = "configurator_mode"
@@ -74,6 +88,13 @@ struct GraduationStatus: Codable, Equatable {
         winRate: Double,
         safetyViolations: Int,
         consecutiveDays: Int,
+        beliefEntropy: Double? = nil,
+        familiarity: Double? = nil,
+        concordance: Double? = nil,
+        calibration: Double? = nil,
+        trustLevel: Double? = nil,
+        burnoutLevel: Double? = nil,
+        noSurfaceStreak: Int? = nil,
         beliefMode: String? = nil,
         jepaActive: Bool? = nil,
         configuratorMode: String? = nil,
@@ -84,6 +105,13 @@ struct GraduationStatus: Codable, Equatable {
         self.winRate = winRate
         self.safetyViolations = safetyViolations
         self.consecutiveDays = consecutiveDays
+        self.beliefEntropy = beliefEntropy
+        self.familiarity = familiarity
+        self.concordance = concordance
+        self.calibration = calibration
+        self.trustLevel = trustLevel
+        self.burnoutLevel = burnoutLevel
+        self.noSurfaceStreak = noSurfaceStreak
         self.beliefMode = beliefMode
         self.jepaActive = jepaActive
         self.configuratorMode = configuratorMode
@@ -352,14 +380,50 @@ struct PredictedOutcomeSummary: Codable, Equatable {
     }
 }
 
+struct ConfidenceBreakdown: Codable, Equatable {
+    let familiarity: Double
+    let concordance: Double
+    let calibration: Double
+    let effectSupport: Double
+    let selectionPenalty: Double
+    let finalConfidence: Double
+
+    enum CodingKeys: String, CodingKey {
+        case familiarity
+        case concordance
+        case calibration
+        case effectSupport = "effect_support"
+        case selectionPenalty = "selection_penalty"
+        case finalConfidence = "final_confidence"
+    }
+}
+
+struct PredictedUncertaintySummary: Codable, Equatable {
+    let tirStd: Double
+    let percentLowStd: Double
+    let percentHighStd: Double
+    let averageBGStd: Double
+    let costStd: Double
+
+    enum CodingKeys: String, CodingKey {
+        case tirStd = "tir_std"
+        case percentLowStd = "pct_low_std"
+        case percentHighStd = "pct_high_std"
+        case averageBGStd = "bg_avg_std"
+        case costStd = "cost_std"
+    }
+}
+
 struct RecommendationPackage: Codable, Equatable {
     let action: TherapyAction
     let predictedImprovement: Double
     let confidence: Double
+    let confidenceBreakdown: ConfidenceBreakdown?
     let effectSize: Double
     let cvarValue: Double
     let burnoutAttribution: BurnoutAttribution?
     let predictedOutcomes: PredictedOutcomeSummary?
+    let predictedUncertainty: PredictedUncertaintySummary?
     let actionLevel: Int
     let actionFamily: ChameliaActionFamily?
     let segmentSummaries: [RecommendationSegmentSummary]
@@ -369,10 +433,12 @@ struct RecommendationPackage: Codable, Equatable {
         case action
         case predictedImprovement = "predicted_improvement"
         case confidence
+        case confidenceBreakdown = "confidence_breakdown"
         case effectSize = "effect_size"
         case cvarValue = "cvar_value"
         case burnoutAttribution = "burnout_attribution"
         case predictedOutcomes = "predicted_outcomes"
+        case predictedUncertainty = "predicted_uncertainty"
         case actionLevel = "action_level"
         case actionFamily = "action_family"
         case segmentSummaries = "segment_summaries"
@@ -383,10 +449,12 @@ struct RecommendationPackage: Codable, Equatable {
         action: TherapyAction,
         predictedImprovement: Double,
         confidence: Double,
+        confidenceBreakdown: ConfidenceBreakdown? = nil,
         effectSize: Double,
         cvarValue: Double,
         burnoutAttribution: BurnoutAttribution?,
         predictedOutcomes: PredictedOutcomeSummary? = nil,
+        predictedUncertainty: PredictedUncertaintySummary? = nil,
         actionLevel: Int = 1,
         actionFamily: ChameliaActionFamily? = nil,
         segmentSummaries: [RecommendationSegmentSummary] = [],
@@ -395,10 +463,12 @@ struct RecommendationPackage: Codable, Equatable {
         self.action = action
         self.predictedImprovement = predictedImprovement
         self.confidence = confidence
+        self.confidenceBreakdown = confidenceBreakdown
         self.effectSize = effectSize
         self.cvarValue = cvarValue
         self.burnoutAttribution = burnoutAttribution
         self.predictedOutcomes = predictedOutcomes
+        self.predictedUncertainty = predictedUncertainty
         self.actionLevel = actionLevel
         self.actionFamily = actionFamily
         self.segmentSummaries = segmentSummaries
@@ -410,10 +480,12 @@ struct RecommendationPackage: Codable, Equatable {
         action = try container.decode(TherapyAction.self, forKey: .action)
         predictedImprovement = try container.decode(Double.self, forKey: .predictedImprovement)
         confidence = try container.decode(Double.self, forKey: .confidence)
+        confidenceBreakdown = try container.decodeIfPresent(ConfidenceBreakdown.self, forKey: .confidenceBreakdown)
         effectSize = try container.decode(Double.self, forKey: .effectSize)
         cvarValue = try container.decode(Double.self, forKey: .cvarValue)
         burnoutAttribution = try container.decodeIfPresent(BurnoutAttribution.self, forKey: .burnoutAttribution)
         predictedOutcomes = try container.decodeIfPresent(PredictedOutcomeSummary.self, forKey: .predictedOutcomes)
+        predictedUncertainty = try container.decodeIfPresent(PredictedUncertaintySummary.self, forKey: .predictedUncertainty)
         actionLevel = try container.decodeIfPresent(Int.self, forKey: .actionLevel) ?? action.level ?? 1
         actionFamily = try container.decodeIfPresent(ChameliaActionFamily.self, forKey: .actionFamily) ?? action.family
         segmentSummaries = try container.decodeIfPresent([RecommendationSegmentSummary].self, forKey: .segmentSummaries) ?? []

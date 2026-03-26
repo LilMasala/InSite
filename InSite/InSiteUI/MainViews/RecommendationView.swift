@@ -93,6 +93,14 @@ struct RecommendationView: View {
                     detailPill(title: "% High", value: signedPercentString(predicted.deltaPercentHigh), tint: predicted.deltaPercentHigh <= 0 ? .green : .orange)
                     detailPill(title: "Avg BG", value: signedNumber(predicted.deltaAverageBG), tint: predicted.deltaAverageBG <= 0 ? .green : .orange)
                 }
+
+                if let uncertainty = recommendation.predictedUncertainty {
+                    HStack(spacing: 8) {
+                        detailPill(title: "TIR ±", value: percentMagnitudeString(uncertainty.tirStd), tint: .secondary)
+                        detailPill(title: "% Low ±", value: percentMagnitudeString(uncertainty.percentLowStd), tint: .secondary)
+                        detailPill(title: "% High ±", value: percentMagnitudeString(uncertainty.percentHighStd), tint: .secondary)
+                    }
+                }
             } else {
                 Text("Expected better cost profile")
                     .font(.system(.largeTitle, design: .rounded).weight(.bold))
@@ -139,6 +147,14 @@ struct RecommendationView: View {
                 detailPill(title: "Effect size", value: "\(effectSizePercent)%")
                 detailPill(title: "CVaR", value: recommendation.cvarValue.formatted(.number.precision(.fractionLength(2))))
             }
+
+            if let breakdown = recommendation.confidenceBreakdown {
+                HStack(spacing: 8) {
+                    detailPill(title: "Familiarity", value: percentMagnitudeString(breakdown.familiarity), tint: .secondary)
+                    detailPill(title: "Concordance", value: percentMagnitudeString(breakdown.concordance), tint: .secondary)
+                    detailPill(title: "Calibration", value: percentMagnitudeString(breakdown.calibration), tint: .secondary)
+                }
+            }
         }
         .cardStyle()
         .accessibilityElement(children: .combine)
@@ -158,6 +174,10 @@ struct RecommendationView: View {
 
     private func signedPercentish(_ value: Int) -> String {
         value > 0 ? "+\(value)" : "\(value)"
+    }
+
+    private func percentMagnitudeString(_ value: Double) -> String {
+        "\(Int((value * 100).rounded()))%"
     }
 
     private var changesCard: some View {

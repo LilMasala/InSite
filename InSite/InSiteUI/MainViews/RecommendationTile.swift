@@ -16,6 +16,10 @@ struct RecommendationTile: View {
         (status?.graduated ?? false) && recommendation != nil
     }
 
+    private var isLiveWithoutRecommendation: Bool {
+        (status?.graduated ?? false) && recommendation == nil
+    }
+
     private var isUnavailable: Bool {
         errorMessage != nil && status == nil && recommendation == nil
     }
@@ -37,6 +41,7 @@ struct RecommendationTile: View {
         if isUnavailable { return .unavailable }
         if isRefreshing && status == nil && recommendation == nil { return .syncing }
         if isReady { return .ready }
+        if isLiveWithoutRecommendation { return .live }
         if progress >= 0.82 { return .nearlyReady }
         return .learning
     }
@@ -109,6 +114,8 @@ struct RecommendationTile: View {
         switch tileState {
         case .ready:
             return "Chamelia ready. Recommendation available now."
+        case .live:
+            return "Chamelia live. Monitoring and evaluating between recommendations."
         case .nearlyReady:
             return "Chamelia nearly ready. Readiness \(readinessPercent) percent."
         case .learning:
@@ -127,6 +134,7 @@ struct RecommendationTile: View {
 private extension RecommendationTile {
     enum TileState {
         case ready
+        case live
         case nearlyReady
         case learning
         case syncing
@@ -135,6 +143,7 @@ private extension RecommendationTile {
         var eyebrow: String {
             switch self {
             case .ready: return "Chamelia"
+            case .live: return "Chamelia"
             case .nearlyReady: return "Shadow"
             case .learning: return "Shadow"
             case .syncing: return "Chamelia"
@@ -145,6 +154,7 @@ private extension RecommendationTile {
         var title: String {
             switch self {
             case .ready: return "Ready"
+            case .live: return "Live"
             case .nearlyReady: return "Shadow"
             case .learning: return "Shadow"
             case .syncing: return "Syncing"
@@ -155,6 +165,7 @@ private extension RecommendationTile {
         func titleColor(accent: Color) -> Color {
             switch self {
             case .ready: return .green
+            case .live: return .green
             case .nearlyReady: return accent
             case .learning: return accent
             case .syncing: return accent
@@ -166,6 +177,8 @@ private extension RecommendationTile {
             switch self {
             case .ready:
                 return "\(readinessPercent)%"
+            case .live:
+                return status.map { "\($0.nDays)d" } ?? "Live"
             case .nearlyReady:
                 return "\(readinessPercent)%"
             case .learning:
@@ -181,6 +194,8 @@ private extension RecommendationTile {
             switch self {
             case .ready:
                 return [Color.green.opacity(0.9), accent.opacity(0.7), Color.green.opacity(0.9)]
+            case .live:
+                return [Color.green.opacity(0.88), accent.opacity(0.5), Color.green.opacity(0.88)]
             case .nearlyReady:
                 return [accent.opacity(0.95), Color.green.opacity(0.55), accent.opacity(0.95)]
             case .learning:
@@ -196,6 +211,8 @@ private extension RecommendationTile {
             switch self {
             case .ready:
                 return "Recommendation waiting"
+            case .live:
+                return status?.lastDecisionReason ?? "Monitoring between actions"
             case .nearlyReady:
                 if let status {
                     return "\(status.consecutiveDays)/7 streak"
